@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Roman Shield Designer</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app" id="appRoot">
+    <!-- LEFT: shield design library -->
+    <aside class="sidebar left" id="leftSidebar">
+      <div class="sidebar-header">
+        <div class="brand">Shield Library</div>
+        <button id="newDesignBtn" class="btn subtle" type="button">+ New</button>
+      </div>
+
+      <!-- ✅ Scrollable sidebar content -->
+      <div class="sidebar-content">
+        <div id="designList" class="design-list" aria-label="Design list"></div>
+      </div>
+
+      <!-- minimize at bottom (pinned) -->
+      <button class="sidebar-min-btn" id="minLeftBtn" type="button">◀ Hide</button>
+    </aside>
+
+    <!-- CENTER: stage -->
+    <main class="stage">
+      <div class="shield-wrap">
+        <div class="shield-frame">
+          <!-- Composited view -->
+          <canvas id="displayCanvas" width="620" height="800"></canvas>
+          <!-- Guides overlay -->
+          <canvas id="guidesCanvas" width="620" height="800" aria-hidden="true"></canvas>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT: tools -->
+    <aside class="sidebar right" id="rightSidebar">
+      <div class="sidebar-header">
+        <div class="brand">Tools</div>
+        <button id="clearStampBtn" class="btn subtle" type="button">Clear Stamp</button>
+      </div>
+
+      <!-- ✅ Scrollable sidebar content -->
+      <div class="sidebar-content">
+        <!-- Settings -->
+        <section class="panel collapsible" id="settingsPanel">
+          <button class="panel-head" type="button">
+            <span>Settings</span><span class="chev">▾</span>
+          </button>
+
+          <div class="panel-body">
+            <div class="row">
+              <label class="label">Mode</label>
+              <select id="modeSelect">
+                <option value="draw">Draw</option>
+                <option value="erase">Erase</option>
+                <option value="fill">Fill</option>
+                <option value="unfill">Unfill</option>
+                <option value="stamp">Stamp</option>
+              </select>
+            </div>
+
+            <div class="row">
+              <label class="label">Symmetry</label>
+              <select id="symmetrySelect">
+                <option value="none">None</option>
+                <option value="mirrorX">Mirror Vertical</option>
+                <option value="mirrorY">Mirror Horizontal</option>
+                <option value="mirrorXY">Mirror Both</option>
+                <option value="radial4">Radial 4</option>
+                <option value="radial8">Radial 8</option>
+              </select>
+            </div>
+
+            <div class="row">
+              <label class="label">Show guides</label>
+              <input id="guidesToggle" type="checkbox" checked />
+            </div>
+
+            <div class="row">
+              <label class="label">Fill tolerance</label>
+              <input id="fillTolerance" type="range" min="0" max="80" value="25" />
+              <span id="fillToleranceVal" class="pill">25</span>
+            </div>
+
+            <div class="row">
+              <label class="label">Stamp size</label>
+              <input id="stampSize" type="range" min="40" max="420" value="180" />
+              <span id="stampSizeVal" class="pill">180</span>
+            </div>
+
+            <div class="row">
+              <label class="label">Stamp rotation</label>
+              <input id="stampRot" type="range" min="-180" max="180" value="0" />
+              <span id="stampRotVal" class="pill">0°</span>
+            </div>
+
+            <hr class="divider" />
+
+            <div class="subhead">Real-World Scale</div>
+
+            <div class="row">
+              <label class="label">Shield width (in)</label>
+              <input id="shieldWidthIn" type="number" min="10" max="80" step="0.25" value="31" />
+            </div>
+
+            <div class="row">
+              <label class="label">Shield height (in)</label>
+              <input id="shieldHeightIn" type="number" min="10" max="100" step="0.25" value="40" />
+            </div>
+
+            <div class="row">
+              <label class="label">Curve depth (in)</label>
+              <input id="shieldCurveIn" type="number" min="0" max="24" step="0.25" value="8" />
+            </div>
+
+            <div class="row">
+              <label class="label">Show 1-inch grid</label>
+              <input id="gridToggle" type="checkbox" />
+            </div>
+
+            <div class="row">
+              <label class="label">px/in (X · Y)</label>
+              <span id="ppiReadout" class="pill">—</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Color -->
+        <section class="panel collapsible" id="colorPanel">
+          <button class="panel-head" type="button">
+            <span>Color</span><span class="chev">▾</span>
+          </button>
+          <div class="panel-body">
+            <input id="colorPicker" type="color" value="#d6a84b" />
+
+            <div class="row">
+              <label class="label">Brush</label>
+              <input id="brushSize" type="range" min="1" max="40" value="8" />
+              <span id="brushSizeVal" class="pill">8</span>
+            </div>
+
+            <div class="row">
+              <label class="label">Opacity</label>
+              <input id="brushOpacity" type="range" min="0.05" max="1" step="0.05" value="1" />
+              <span id="brushOpacityVal" class="pill">1.00</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Layers -->
+        <section class="panel collapsible" id="layersPanel">
+          <button class="panel-head" type="button">
+            <span>Layers</span><span class="chev">▾</span>
+          </button>
+          <div class="panel-body">
+            <div class="row">
+              <button id="addLayerBtn" class="btn subtle" type="button">+ Add</button>
+              <button id="deleteLayerBtn" class="btn subtle" type="button">Delete</button>
+            </div>
+            <div id="layersList" class="layers-list" aria-label="Layers list"></div>
+          </div>
+        </section>
+
+        <!-- Patterns / Stamps -->
+        <section class="panel collapsible" id="patternsPanel">
+          <button class="panel-head" type="button">
+            <span>Patterns</span><span class="chev">▾</span>
+          </button>
+          <div class="panel-body">
+            <div id="stampList" class="stamp-list" aria-label="Stamp list"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- minimize at bottom (pinned) -->
+      <button class="sidebar-min-btn" id="minRightBtn" type="button">Hide ▶</button>
+    </aside>
+
+    <!-- Restore tabs (must be OUTSIDE sidebars so they still appear when hidden) -->
+    <button class="sidebar-restore left" id="restoreLeftBtn" type="button" title="Show library">▶</button>
+    <button class="sidebar-restore right" id="restoreRightBtn" type="button" title="Show tools">◀</button>
+
+    <!-- DRAGGABLE TOOLBAR (floating, not inside stage) -->
+    <div class="toolbar" id="toolbar">
+      <div class="toolbar-drag-handle" id="toolbarHandle" title="Drag toolbar (double-click to reset)">⋮⋮</div>
+
+      <div class="tool-group">
+        <button class="btn" id="drawBtn" type="button">Draw</button>
+        <button class="btn" id="eraseBtn" type="button">Erase</button>
+        <button class="btn" id="fillBtn" type="button">Fill</button>
+        <button class="btn" id="unfillBtn" type="button">Unfill</button>
+        <button class="btn" id="stampBtn" type="button">Stamp</button>
+      </div>
+
+      <div class="tool-group">
+        <button class="btn subtle" id="undoBtn" type="button">Undo</button>
+        <button class="btn subtle" id="redoBtn" type="button">Redo</button>
+      </div>
+
+      <div class="tool-group">
+        <button class="btn subtle" id="exportBtn" type="button">Export PNG</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
