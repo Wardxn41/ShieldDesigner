@@ -12,7 +12,7 @@
     .proj-wrap{
       height:100vh;
       display:grid;
-      grid-template-columns: 360px minmax(0,1fr);
+      grid-template-columns: 380px minmax(0,1fr);
     }
     .proj-controls{
       padding:16px;
@@ -33,7 +33,7 @@
     }
 
     #projCanvas{
-      width:min(96vw, 1400px);
+      width:min(96vw, 1600px);
       height:auto;
       border-radius: 18px;
       box-shadow: var(--shadow);
@@ -60,6 +60,34 @@
       background: rgba(255,255,255,.05);
       margin-top: 10px;
     }
+
+    .subhead{
+      font-weight: 900;
+      letter-spacing: .2px;
+      margin-top: 4px;
+      color: var(--text);
+      opacity: .95;
+    }
+
+    /* Make number inputs match theme a bit better */
+    input[type="number"]{
+      width: 120px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      outline: none;
+    }
+    select{
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      outline: none;
+    }
+    input[type="range"]{ flex: 1; }
   </style>
 </head>
 <body>
@@ -74,6 +102,7 @@
         This page maps your shield design into a projector-ready image:
         <br>• Curvature compensation (cylindrical scutum)
         <br>• Keystone alignment (4-corner handles)
+        <br>• Scutum outline overlay for edge alignment
       </div>
 
       <div class="help-box tiny">
@@ -81,8 +110,8 @@
         <div style="margin-top:6px;">
           • Drag a <b>corner handle</b> to keystone-fit your projector<br>
           • Drag <b>inside the quad</b> to move the whole design<br>
-          • Hold <span class="kbd">Shift</span> while dragging inside to rotate (optional)<br>
-          • Mouse wheel inside quad to scale (optional)
+          • Mouse wheel inside quad to scale<br>
+          • Hold <span class="kbd">Shift</span> while dragging inside to rotate (optional)
         </div>
       </div>
 
@@ -99,7 +128,7 @@
       </div>
 
       <div class="row">
-        <label class="label">Show shield outline</label>
+        <label class="label">Show scutum outline</label>
         <input id="outlineToggle" type="checkbox" checked />
       </div>
 
@@ -111,11 +140,28 @@
 
       <hr class="divider" />
 
+      <div class="subhead">Physical Mapping</div>
+
+      <div class="row">
+        <label class="label">Projector px/in</label>
+        <input id="projPpi" type="number" min="10" max="400" step="0.1" value="60" />
+      </div>
+
+      <button id="autoFitBtn" class="btn" type="button" style="margin-top:10px;">
+        Auto-fit 31×40×8
+      </button>
+
+      <div class="tiny" style="margin-top:8px;">
+        Calibrate <b>px/in</b> by projecting a grid and adjusting until 1 inch on the shield measures 1 inch in real life.
+      </div>
+
+      <hr class="divider" />
+
       <button id="resetBtn" class="btn subtle" type="button">Reset Mapping</button>
       <button id="downloadBtn" class="btn" type="button" style="margin-top:10px;">Download Projector PNG</button>
 
       <div class="tiny" style="margin-top:10px;">
-        Tip: project this PNG, then adjust the 4 corners until the gold outline matches the physical shield edge.
+        Tip: project this page, then adjust the 4 corners until the <b>gold scutum outline</b> matches your physical shield edge.
       </div>
     </div>
 

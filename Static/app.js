@@ -1014,19 +1014,11 @@ redoBtn.addEventListener("click", redo);
 // Export (composited view)
 // ============================================================
 function exportPNG(){
-/*
-  const a = document.createElement("a");
-  a.download = `shield-${activeDesignId ?? "design"}.png`;
-  a.href = displayCanvas.toDataURL("image/png");
-  a.click();
-  */
-
   const dataUrl = displayCanvas.toDataURL("image/png");
-  localStorage.setItem("roman_shield_latest_export", dataUrl);
-  // open projector alignment page
-  window.open("/projector", "_blank")
-
+  localStorage.setItem("roman_shield_last_export", dataUrl);
+  window.open("/projector", "_blank");
 }
+
 exportBtn.addEventListener("click", exportPNG);
 
 // ============================================================
