@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Projector Export</title>
+
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    body { overflow: hidden; }
+
+    .proj-wrap{
+      height:100vh;
+      display:grid;
+      grid-template-columns: 360px minmax(0,1fr);
+    }
+    .proj-controls{
+      padding:16px;
+      border-right:1px solid var(--border);
+      background: linear-gradient(180deg, var(--bg2), #140f0c);
+      overflow:auto;
+      min-height:0;
+    }
+    .proj-stage{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: #0f0b08;
+      position:relative;
+      min-width:0;
+      min-height:0;
+      overflow:hidden;
+    }
+
+    #projCanvas{
+      width:min(96vw, 1400px);
+      height:auto;
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(255,255,255,.08);
+      background: #111;
+      cursor: default;
+    }
+
+    .tiny { font-size: 12px; color: var(--muted); line-height: 1.35; }
+    .kbd{
+      display:inline-block;
+      padding:2px 6px;
+      border:1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(255,255,255,.06);
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    .help-box{
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.05);
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="proj-wrap">
+    <div class="proj-controls">
+      <div class="row" style="margin-top:0;">
+        <button id="backBtn" class="btn subtle" type="button">← Back to Designer</button>
+      </div>
+
+      <div class="brand" style="margin-top:10px;">Projection Export</div>
+      <div class="tiny" style="margin-top:6px;">
+        This page maps your shield design into a projector-ready image:
+        <br>• Curvature compensation (cylindrical scutum)
+        <br>• Keystone alignment (4-corner handles)
+      </div>
+
+      <div class="help-box tiny">
+        <div><b>Controls</b></div>
+        <div style="margin-top:6px;">
+          • Drag a <b>corner handle</b> to keystone-fit your projector<br>
+          • Drag <b>inside the quad</b> to move the whole design<br>
+          • Hold <span class="kbd">Shift</span> while dragging inside to rotate (optional)<br>
+          • Mouse wheel inside quad to scale (optional)
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="row">
+        <label class="label">Curvature warp</label>
+        <input id="warpToggle" type="checkbox" checked />
+      </div>
+
+      <div class="row">
+        <label class="label">Show grid</label>
+        <input id="gridToggle2" type="checkbox" />
+      </div>
+
+      <div class="row">
+        <label class="label">Show shield outline</label>
+        <input id="outlineToggle" type="checkbox" checked />
+      </div>
+
+      <div class="row">
+        <label class="label">Subdivisions</label>
+        <input id="subdiv" type="range" min="8" max="40" value="22" />
+        <span id="subdivVal" class="pill">22</span>
+      </div>
+
+      <hr class="divider" />
+
+      <button id="resetBtn" class="btn subtle" type="button">Reset Mapping</button>
+      <button id="downloadBtn" class="btn" type="button" style="margin-top:10px;">Download Projector PNG</button>
+
+      <div class="tiny" style="margin-top:10px;">
+        Tip: project this PNG, then adjust the 4 corners until the gold outline matches the physical shield edge.
+      </div>
+    </div>
+
+    <div class="proj-stage">
+      <canvas id="projCanvas" width="1280" height="720"></canvas>
+    </div>
+  </div>
+
+  <script src="/static/projector.js"></script>
+</body>
+</html>

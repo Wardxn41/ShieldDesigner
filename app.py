@@ -6,6 +6,10 @@ app = Flask(__name__)
 def home():
     return render_template("index.html")
 
+@app.route("/projector")
+def projector():
+    return render_template("projector.html")
+
 if __name__ == "__main__":
     # Runs on localhost:8080
     app.run(host="127.0.0.1", port=8080, debug=True)
