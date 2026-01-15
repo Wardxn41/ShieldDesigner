@@ -166,6 +166,7 @@ body{
   pointer-events:none; /* critical for drawing */
 }
 
+
 /* Panels (right sidebar) */
 .panel{
   background: linear-gradient(180deg, rgba(36,26,20,.96), rgba(28,20,16,.96));
