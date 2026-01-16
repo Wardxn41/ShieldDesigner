@@ -1359,8 +1359,6 @@ async function loadDesignIntoCanvas(id){
     return layer;
   });
 
-  let remaining = d.layers.length;
-
   function finish(){
     activeLayerIndex = Math.min(1, layers.length - 1);
     renderLayersList();
@@ -1370,28 +1368,38 @@ async function loadDesignIntoCanvas(id){
     renderDesignList();
   }
 
-  d.layers.forEach((l, i) => {
-    if (!l.png_url) {
-      if (--remaining === 0) finish();
-      return;
-    }
+  // Helper: load an image URL into an HTMLImageElement (Promise-based)
+  function loadImage(url){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous"; // safe even though same-origin; MUST be before src
 
-    const img = new Image();
-    img.crossOrigin = "anonymous"; // MUST be set BEFORE src
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
 
-    img.onload = () => {
-      layers[i].ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
-      layers[i].ctx.drawImage(img, 0, 0);
-      if (--remaining === 0) finish();
-    };
+      img.src = url;
+    });
+  }
 
-    img.onerror = () => {
-      if (--remaining === 0) finish();
-    };
+  // Load all layer PNGs in parallel, then draw them
+  await Promise.all(
+    d.layers.map(async (l, i) => {
+      if (!l.png_url) return;
 
-    img.src = l.png_url;
-  });
+      try {
+        const img = await loadImage(l.png_url);
+        layers[i].ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+        layers[i].ctx.drawImage(img, 0, 0);
+      } catch (err) {
+        // If a layer fails to load, we just skip it (don’t block finishing).
+        console.warn(err);
+      }
+    })
+  );
+
+  finish();
 }
+
 
 newDesignBtn?.addEventListener("click", createNewDesign);
 

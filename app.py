@@ -1,7 +1,8 @@
-
 import os
 import json
 from datetime import datetime, timezone
+import hashlib
+from typing import Dict, Tuple
 
 import requests
 from flask import Flask, render_template, Response, request, jsonify
@@ -9,6 +10,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 app = Flask(__name__)
+
+# ============================================================
+# CACHING ADDITION #1 (Server RAM cache + ETag helper)
+# What it does:
+# - Keeps hot layer PNG bytes in memory so Flask doesn't re-fetch from Supabase
+# - Generates a strong ETag so the browser can do conditional GETs (304)
+# Why we need it:
+# - Switching designs stops being "Supabase-latency bound"
+# - Browser and server can both skip redundant work
+# ============================================================
+LayerKey = Tuple[str, int]
+_layer_png_cache: Dict[LayerKey, Tuple[bytes, str]] = {}  # (png_bytes, etag)
+
+def _make_etag(data: bytes) -> str:
+    # Strong ETag (content hash). Browser sends it back as If-None-Match.
+    return '"' + hashlib.sha1(data).hexdigest() + '"'
+
 
 # ---------- Config exposed to browser (SAFE) ----------
 @app.get("/config.js")
@@ -69,7 +87,7 @@ def storage_object_url(bucket: str, object_path: str) -> str:
     return f"{_sb_url()}/storage/v1/object/{bucket}/{object_path}"
 
 def rest_get(path: str, params=None):
-    r = requests.get(rest_url(path), headers=sb_headers_json(), params=params)
+    r = requests.get(rest_url(path), headers=sb_headers_json(), params=params, timeout=(5, 25))
     if not r.ok:
         raise RuntimeError(f"Supabase REST GET failed: {r.status_code} {r.text}")
     return r.json()
@@ -77,7 +95,13 @@ def rest_get(path: str, params=None):
 def rest_post(path: str, payload, params=None, prefer_return="representation"):
     headers = sb_headers_json()
     headers["Prefer"] = f"return={prefer_return}"
-    r = requests.post(rest_url(path), headers=headers, params=params, data=json.dumps(payload))
+    r = requests.post(
+        rest_url(path),
+        headers=headers,
+        params=params,
+        data=json.dumps(payload),
+        timeout=(5, 25),
+    )
     if not r.ok:
         raise RuntimeError(f"Supabase REST POST failed: {r.status_code} {r.text}")
     return r.json() if prefer_return == "representation" else None
@@ -85,7 +109,13 @@ def rest_post(path: str, payload, params=None, prefer_return="representation"):
 def rest_patch(path: str, payload, params=None):
     headers = sb_headers_json()
     headers["Prefer"] = "return=minimal"
-    r = requests.patch(rest_url(path), headers=headers, params=params, data=json.dumps(payload))
+    r = requests.patch(
+        rest_url(path),
+        headers=headers,
+        params=params,
+        data=json.dumps(payload),
+        timeout=(5, 25),
+    )
     if not r.ok:
         raise RuntimeError(f"Supabase REST PATCH failed: {r.status_code} {r.text}")
     return None
@@ -148,6 +178,21 @@ def api_load_design(design_id):
         },
     )
 
+    # ============================================================
+    # CACHING ADDITION #2 (Cache-busting version token for URLs)
+    # What it does:
+    # - Adds ?v=<updated_ms> to each png_url returned by /api/designs/<id>
+    # Why we need it:
+    # - We will tell the browser "cache these PNGs for a long time"
+    # - When you save, updated_at changes, so v changes, so URL changes,
+    #   so the browser fetches the NEW PNG once (no stale layers).
+    # ============================================================
+    updated = design.get("updated_at")
+    ms = 0
+    if updated:
+        dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+        ms = int(dt.timestamp() * 1000)
+
     out_layers = []
     for l in layers:
         png_path = l.get("png_path")
@@ -157,14 +202,9 @@ def api_load_design(design_id):
             "name": l.get("name"),
             "visible": l.get("visible"),
             # SAME-ORIGIN PNG proxy (avoids canvas taint/CORS entirely)
-            "png_url": f"/api/designs/{design_id}/layers/{idx}.png" if png_path else None,
+            # + version token for safe long-term browser caching
+            "png_url": (f"/api/designs/{design_id}/layers/{idx}.png?v={ms}" if png_path else None),
         })
-
-    updated = design.get("updated_at")
-    ms = 0
-    if updated:
-        dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
-        ms = int(dt.timestamp() * 1000)
 
     return jsonify({
         "id": design.get("id"),
@@ -176,13 +216,47 @@ def api_load_design(design_id):
 
 @app.get("/api/designs/<design_id>/layers/<int:layer_index>.png")
 def api_layer_png(design_id, layer_index: int):
-    # Proxy layer PNG through Flask (same-origin) to avoid canvas taint/CORS headaches.
-    bucket = _bucket()
-    png_path = f"layers/{design_id}/layer_{layer_index}.png"
-    r = requests.get(storage_object_url(bucket, png_path), headers=sb_headers_storage("image/png"))
-    if not r.ok:
-        return jsonify({"error": "layer fetch failed", "status": r.status_code, "details": r.text}), 404
-    return Response(r.content, mimetype="image/png")
+    # ============================================================
+    # CACHING ADDITION #3 (Browser caching + conditional GET + RAM cache)
+    # What it does:
+    # - RAM cache: store (bytes, etag) in _layer_png_cache for hot switching
+    # - ETag: browser can revalidate with If-None-Match and get 304
+    # - Cache-Control: browser can keep PNGs for a long time
+    # Why we need it:
+    # - Eliminates repeated Supabase fetches when switching designs
+    # - Eliminates repeated downloads/decodes in the browser
+    # ============================================================
+    key: LayerKey = (design_id, int(layer_index))
+
+    cached = _layer_png_cache.get(key)
+    if cached:
+        data, etag = cached
+    else:
+        bucket = _bucket()
+        png_path = f"layers/{design_id}/layer_{layer_index}.png"
+        r = requests.get(
+            storage_object_url(bucket, png_path),
+            headers=sb_headers_storage("image/png"),
+            timeout=(5, 25),
+        )
+        if not r.ok:
+            return jsonify({"error": "layer fetch failed", "status": r.status_code, "details": r.text}), 404
+        data = r.content
+        etag = _make_etag(data)
+        _layer_png_cache[key] = (data, etag)
+
+    # Conditional GET: If browser already has this exact bytes, return 304 (no body).
+    inm = request.headers.get("If-None-Match")
+    if inm and inm == etag:
+        resp = Response(status=304)
+        resp.headers["ETag"] = etag
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return resp
+
+    resp = Response(data, mimetype="image/png")
+    resp.headers["ETag"] = etag
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return resp
 
 
 # ---------- API: Save (layers + stamps) ----------
@@ -215,9 +289,19 @@ def api_save_design(design_id):
                 storage_object_url(bucket, png_path),
                 headers=sb_headers_storage("image/png"),
                 data=f.read(),
+                timeout=(5, 25),
             )
             if not r.ok:
                 return jsonify({"error": "storage upload failed", "status": r.status_code, "details": r.text}), 500
+
+        # ============================================================
+        # CACHING ADDITION #4 (Invalidate server RAM cache on save)
+        # What it does:
+        # - Removes the cached bytes so future requests fetch the new PNG once.
+        # Why we need it:
+        # - Prevents Flask from serving old bytes after you upload a new layer.
+        # ============================================================
+        _layer_png_cache.pop((design_id, idx), None)
 
         uploaded_rows.append({
             "design_id": design_id,
@@ -235,6 +319,7 @@ def api_save_design(design_id):
         headers=headers,
         params={"on_conflict": "design_id,layer_index"},
         data=json.dumps(uploaded_rows),
+        timeout=(5, 25),
     )
     if not r.ok:
         return jsonify({"error": "layers upsert failed", "status": r.status_code, "details": r.text}), 500
@@ -250,5 +335,4 @@ def api_save_design(design_id):
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=8080, debug=True, use_reloader = False)
-
+    app.run(host="127.0.0.1", port=8080, debug=True, use_reloader=False)
