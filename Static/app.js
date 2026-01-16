@@ -10,6 +10,7 @@
 // ============================================================
 
 import { listDesigns, createDesign, saveDesign, loadDesign } from "./Storage/repo.js";
+//import { generateWingedThunder } from "./patterns/romanPatterns.js";
 
 const UI_KEY = "roman_shield_ui_v1";
 const appRoot = document.getElementById("appRoot");
@@ -530,9 +531,7 @@ function warmBaseFill(){
  */
 const STAMPS = [
   // Example placeholders. Replace with your real stamp assets.
-  { id: "eagle", name: "Eagle", src: "/static/stamps/eagle.png", tintable: true },
-  { id: "bolt",  name: "Bolt",  src: "/static/stamps/bolt.png",  tintable: true },
-  { id: "laurel",name: "Laurel",src: "/static/stamps/laurel.png",tintable: true },
+ { id: "arrow", name: "Arrow", src: "/static/stamps/arrow.png", tintable: true }
 ];
 
 let stampObjects = [];       // [{uid, stampId, x,y, rot, sx, sy, flipX, flipY, baseSize, color, opacity}]
@@ -615,7 +614,9 @@ window.addEventListener("keydown", (e) => {
 }, { passive: false });
 
 function renderStampList(){
-  if (!stampListEl) return;
+
+
+if (!stampListEl) return;
   stampListEl.innerHTML = "";
   for (const s of STAMPS){
     const btn = document.createElement("button");
@@ -636,6 +637,8 @@ function renderStampList(){
         baseSize: base,
         color: colorPicker?.value || "#ffffff",
         opacity: 1,
+
+
       });
       selectedStampUid = uid;
       setMode("stamp");
@@ -1423,6 +1426,125 @@ async function saveActiveToDesigns(){
   await saveDesign(activeDesignId, layers, stampObjects);
   await refreshDesignList();
 }
+
+function generateWingedThunder(opts = {}) {
+  const {
+    baseColor = "#7a0f0f",
+    gold = "#d4af37",
+    ivory = "#f3e6c8",
+    rayCount = 8,
+    rayAlpha = 0.28,
+    rayWidth = 18,
+    haloWidth = 10,
+  } = opts;
+
+  const W = displayCanvas.width;
+  const H = displayCanvas.height;
+  const cx = W / 2;
+  const cy = H / 2;
+  const minD = Math.min(W, H);
+
+  // Decide which layers to draw onto
+  const baseLayer = layers[0] || layers[activeLayerIndex];
+  const geoLayer  = layers[1] || layers[activeLayerIndex];
+  const iconLayer = layers[2] || layers[activeLayerIndex];
+
+  // Clear paint layers (leave stamps alone; you said you have none anyway)
+  pushUndo();
+  redoStack = [];
+  for (const l of layers) l.ctx.clearRect(0, 0, W, H);
+
+  // ---------- Base fill ----------
+  clipToShield(baseLayer.ctx);
+  baseLayer.ctx.fillStyle = baseColor;
+  baseLayer.ctx.fillRect(0, 0, W, H);
+  unclip(baseLayer.ctx);
+
+  // ---------- Rays + halo ----------
+  clipToShield(geoLayer.ctx);
+
+  // Rays
+  geoLayer.ctx.save();
+  geoLayer.ctx.globalAlpha = rayAlpha;
+  geoLayer.ctx.strokeStyle = gold;
+  geoLayer.ctx.lineCap = "round";
+  geoLayer.ctx.lineWidth = rayWidth;
+
+  const innerR = minD * 0.12;
+  const outerR = minD * 0.46;
+  for (let i = 0; i < rayCount; i++) {
+    const a = (Math.PI * 2 * i) / rayCount;
+    geoLayer.ctx.beginPath();
+    geoLayer.ctx.moveTo(cx + Math.cos(a) * innerR, cy + Math.sin(a) * innerR);
+    geoLayer.ctx.lineTo(cx + Math.cos(a) * outerR, cy + Math.sin(a) * outerR);
+    geoLayer.ctx.stroke();
+  }
+  geoLayer.ctx.restore();
+
+  // Halo ring
+  geoLayer.ctx.save();
+  geoLayer.ctx.globalAlpha = 0.95;
+  geoLayer.ctx.strokeStyle = gold;
+  geoLayer.ctx.lineWidth = haloWidth;
+  geoLayer.ctx.beginPath();
+  geoLayer.ctx.arc(cx, cy, minD * 0.245, 0, Math.PI * 2);
+  geoLayer.ctx.stroke();
+  geoLayer.ctx.restore();
+
+  unclip(geoLayer.ctx);
+
+  // ---------- Icon layer: wings + bolt ----------
+  clipToShield(iconLayer.ctx);
+
+  // Helpers: simple “Roman-style” wing using a tapered feather fan
+  function drawWing(ctx, x, y, dir /* -1 left, +1 right */, scale = 1) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(dir, 1);
+    ctx.scale(scale, scale);
+
+    // Wing main body
+    ctx.fillStyle = ivory;
+    ctx.globalAlpha = 0.92;
+    ctx.beginPath();
+    // A fat teardrop-ish wing silhouette
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(120, -40, 210, -10);
+    ctx.quadraticCurveTo(170, 60, 60, 80);
+    ctx.quadraticCurveTo(15, 55, 0, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Feather lines
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = gold;
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 7; i++) {
+      const t = i / 6;
+      const fx0 = 20 + t * 25;
+      const fy0 = -5 + t * 12;
+      const fx1 = 190 - t * 25;
+      const fy1 = -5 + t * 15 + (t * t) * 35;
+      ctx.beginPath();
+      ctx.moveTo(fx0, fy0);
+      ctx.quadraticCurveTo(110, 20 + t * 10, fx1, fy1);
+      ctx.stroke();
+    }
+
+    // Outer edge highlight
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = gold;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(120, -40, 210, -10);
+    ctx.quadraticCurveTo(170, 60, 60, 80);
+    ctx.quadraticCurveTo(15, 55, 0, 0);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+ }
 
 // ============================================================
 // Init
