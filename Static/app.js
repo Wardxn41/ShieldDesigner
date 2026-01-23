@@ -8,10 +8,7 @@
 // - PNG Stamps (non-destructive objects; minimal + robust)
 // - Server-backed designs via ./Storage/repo.js
 // ============================================================
-
 import { listDesigns, createDesign, saveDesign, loadDesign } from "./Storage/repo.js";
-//import { generateWingedThunder } from "./patterns/romanPatterns.js";
-
 const UI_KEY = "roman_shield_ui_v1";
 const appRoot = document.getElementById("appRoot");
 
@@ -31,25 +28,20 @@ const brushSize = document.getElementById("brushSize");
 const brushSizeVal = document.getElementById("brushSizeVal");
 const brushOpacity = document.getElementById("brushOpacity");
 const brushOpacityVal = document.getElementById("brushOpacityVal");
-
 const modeSelect = document.getElementById("modeSelect");
 const symmetrySelect = document.getElementById("symmetrySelect");
 const guidesToggle = document.getElementById("guidesToggle");
-
 const fillTolerance = document.getElementById("fillTolerance");
 const fillToleranceVal = document.getElementById("fillToleranceVal");
-
 const stampSize = document.getElementById("stampSize");
 const stampSizeVal = document.getElementById("stampSizeVal");
 const stampRot = document.getElementById("stampRot");
 const stampRotVal = document.getElementById("stampRotVal");
-
 const shieldWidthIn  = document.getElementById("shieldWidthIn");
 const shieldHeightIn = document.getElementById("shieldHeightIn");
 const shieldCurveIn  = document.getElementById("shieldCurveIn");
 const gridToggle     = document.getElementById("gridToggle");
 const ppiReadout     = document.getElementById("ppiReadout");
-
 const clearStampBtn = document.getElementById("clearStampBtn");
 const stampListEl = document.getElementById("stampList");
 
@@ -59,13 +51,13 @@ const eraseBtn = document.getElementById("eraseBtn");
 const fillBtn = document.getElementById("fillBtn");
 const unfillBtn = document.getElementById("unfillBtn");
 const stampBtn = document.getElementById("stampBtn");
-
 const undoBtn = document.getElementById("undoBtn");
 const redoBtn = document.getElementById("redoBtn");
 const exportBtn = document.getElementById("exportBtn");
 
 // Library
 const newDesignBtn = document.getElementById("newDesignBtn");
+//const delDesignBtn = document.getElementById("delDesignBtn");
 const designListEl = document.getElementById("designList");
 
 // Layers UI
@@ -92,8 +84,14 @@ document.querySelectorAll(".panel.collapsible .panel-head").forEach(btn => {
 brushSizeVal.textContent = brushSize.value;
 brushOpacityVal.textContent = Number(brushOpacity.value).toFixed(2);
 fillToleranceVal.textContent = fillTolerance.value;
-stampSizeVal.textContent = stampSize.value;
+// Stamp size standard init (keeps all stamps spawning reasonably sized)
+if (stampSize && (!stampSize.value || Number(stampSize.value) <= 0)) {
+  stampSize.value = DEFAULT_STAMP_SIZE;
+}
+stampSizeVal.textContent = stampSize?.value || DEFAULT_STAMP_SIZE;
+
 stampRotVal.textContent = `${stampRot.value}°`;
+
 
 brushSize.addEventListener("input", () => brushSizeVal.textContent = brushSize.value);
 brushOpacity.addEventListener("input", () => brushOpacityVal.textContent = Number(brushOpacity.value).toFixed(2));
@@ -526,23 +524,31 @@ function warmBaseFill(){
 
 /**
  * Define your stamps here.
- * Make sure the `src` paths exist under /static/...
- * If you already have a STAMPS list elsewhere, remove one (keep only one).
+    Middle arrow meant to span the entire length of the shield length wise and width wise
+    wings(left and right) meant to be flippable(up and down) - flipping could be done in the service
+        but for now its just left and right
+    lauralarms(left and right) they will once be put together make one full laurel wreath
+    lightning bolts(left and right)
+    Legiontags
+    animals(several)
  */
 const STAMPS = [
-  // Example placeholders. Replace with your real stamp assets.
- { id: "arrow", name: "Arrow", src: "/static/stamps/arrow.png", tintable: true }
+ //3 so far
+ { id: "arrow", name: "Arrow", src: "/static/stamps/arrow.png", tintable: true },
+ { id: "wingR", name: "WingRight", src: "/static/stamps/wingRight.png", tintable: true },
+ { id: "wingL", name: "WingLeft", src: "/static/stamps/wingLeft.png", tintable: true },
+ { id: "laurelL", name: "LaruelLeft", src: "/static/stamps/LaurelLeft.png", tintable: true },
+ { id: "laurelR", name: "LaurelRight", src: "/static/stamps/LaurelRight.png", tintable: true }
 ];
 
 let stampObjects = [];       // [{uid, stampId, x,y, rot, sx, sy, flipX, flipY, baseSize, color, opacity}]
 let selectedStampUid = null; // uid of selected stamp
-
 const stampImgCache = new Map();     // stampId -> Image
 const stampLoaded   = new Map();     // stampId -> boolean
 const tintedCache   = new Map();     // `${stampId}|${color}` -> canvas
-
 const HANDLE_SIZE = 10;
 const ROTATE_HANDLE_DIST = 30;
+const DEFAULT_STAMP_SIZE = 120;
 
 function loadStampImage(stampId){
   if (stampImgCache.has(stampId)) return stampImgCache.get(stampId);
@@ -551,8 +557,9 @@ function loadStampImage(stampId){
   if (!meta) return null;
 
   const img = new Image();
-  // Stamps are served from same-origin static; crossOrigin is safe anyway:
+  // crossOrigin is safe anyway, even tho they are from same-origin currently
   img.crossOrigin = "anonymous";
+
 
   stampLoaded.set(stampId, false);
   img.onload = () => { stampLoaded.set(stampId, true); compositeToDisplay(); };
@@ -601,7 +608,7 @@ function deleteSelectedStamp(){
   compositeToDisplay();
   saveActiveToDesigns();
 }
-
+//key listener for resolving backspace leaving the page bug
 window.addEventListener("keydown", (e) => {
   if (e.key === "Delete" || e.key === "Backspace") {
     const el = document.activeElement;
@@ -614,8 +621,6 @@ window.addEventListener("keydown", (e) => {
 }, { passive: false });
 
 function renderStampList(){
-
-
 if (!stampListEl) return;
   stampListEl.innerHTML = "";
   for (const s of STAMPS){
@@ -625,7 +630,7 @@ if (!stampListEl) return;
     btn.addEventListener("click", () => {
       // add new stamp centered
       const uid = crypto.randomUUID();
-      const base = Number(stampSize?.value || 64);
+      const base = Number(stampSize?.value || DEFAULT_STAMP_SIZE);
       stampObjects.push({
         uid,
         stampId: s.id,
@@ -671,9 +676,15 @@ function drawStampSelectionOverlay() {
   if (!img) return;
   if (!stampLoaded.get(obj.stampId)) return;
 
-  const aspect = img.height / img.width;
-  const w = obj.baseSize;
-  const h = obj.baseSize * aspect;
+  const target = Number(obj.baseSize || stampSize?.value || DEFAULT_STAMP_SIZE);
+
+const naturalW = img.width || 1;
+const naturalH = img.height || 1;
+
+const scaleToTarget = target / Math.max(naturalW, naturalH);
+const w = naturalW * scaleToTarget;
+const h = naturalH * scaleToTarget;
+
 
   const cornersLocal = [
     { x: -w / 2, y: -h / 2 },
@@ -755,7 +766,6 @@ function drawStampSelectionOverlay() {
 
 // Handle hit-test
 function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
-
 function hitTestHandle(p){
   const obj = getSelectedStamp();
   if (!obj || !obj.__handles) return null;
@@ -780,9 +790,15 @@ function hitTestStampObject(worldP){
     const img = loadStampImage(obj.stampId);
     if (!img || !stampLoaded.get(obj.stampId)) continue;
 
-    const aspect = img.height / img.width;
-    const w = obj.baseSize;
-    const h = obj.baseSize * aspect;
+    const target = Number(obj.baseSize || stampSize?.value || DEFAULT_STAMP_SIZE);
+
+const naturalW = img.width || 1;
+const naturalH = img.height || 1;
+
+const scaleToTarget = target / Math.max(naturalW, naturalH);
+const w = naturalW * scaleToTarget;
+const h = naturalH * scaleToTarget;
+
 
     // world -> local
     const dx = worldP.x - obj.x;
@@ -908,9 +924,15 @@ function renderStampObjects(ctx) {
     const img = loadStampImage(obj.stampId);
     if (!img || !stampLoaded.get(obj.stampId)) continue;
 
-    const aspect = img.height / img.width;
-    const w = obj.baseSize || Number(stampSize?.value || 64);
-    const h = w * aspect;
+    // baseSize means: "max dimension in canvas pixels"
+    const target = Number(obj.baseSize || stampSize?.value || DEFAULT_STAMP_SIZE);
+
+    const naturalW = img.width || 1;
+    const naturalH = img.height || 1;
+
+    const scaleToTarget = target / Math.max(naturalW, naturalH);
+    const w = naturalW * scaleToTarget;
+    const h = naturalH * scaleToTarget;
 
     const source = meta.tintable
       ? (getTintedStampCanvas(obj.stampId, obj.color || "#ffffff") || img)
@@ -933,6 +955,7 @@ function renderStampObjects(ctx) {
     ctx.globalAlpha = 1;
   }
 }
+
 
 // ============================================================
 // Compositing
@@ -1405,6 +1428,7 @@ async function loadDesignIntoCanvas(id){
 
 
 newDesignBtn?.addEventListener("click", createNewDesign);
+//delDesignBtn?.addEventListener("click", delNewDesign);
 
 async function createNewDesign(){
   const name = prompt("Design name?", `Design ${designs.length+1}`);
@@ -1427,125 +1451,6 @@ async function saveActiveToDesigns(){
   await refreshDesignList();
 }
 
-function generateWingedThunder(opts = {}) {
-  const {
-    baseColor = "#7a0f0f",
-    gold = "#d4af37",
-    ivory = "#f3e6c8",
-    rayCount = 8,
-    rayAlpha = 0.28,
-    rayWidth = 18,
-    haloWidth = 10,
-  } = opts;
-
-  const W = displayCanvas.width;
-  const H = displayCanvas.height;
-  const cx = W / 2;
-  const cy = H / 2;
-  const minD = Math.min(W, H);
-
-  // Decide which layers to draw onto
-  const baseLayer = layers[0] || layers[activeLayerIndex];
-  const geoLayer  = layers[1] || layers[activeLayerIndex];
-  const iconLayer = layers[2] || layers[activeLayerIndex];
-
-  // Clear paint layers (leave stamps alone; you said you have none anyway)
-  pushUndo();
-  redoStack = [];
-  for (const l of layers) l.ctx.clearRect(0, 0, W, H);
-
-  // ---------- Base fill ----------
-  clipToShield(baseLayer.ctx);
-  baseLayer.ctx.fillStyle = baseColor;
-  baseLayer.ctx.fillRect(0, 0, W, H);
-  unclip(baseLayer.ctx);
-
-  // ---------- Rays + halo ----------
-  clipToShield(geoLayer.ctx);
-
-  // Rays
-  geoLayer.ctx.save();
-  geoLayer.ctx.globalAlpha = rayAlpha;
-  geoLayer.ctx.strokeStyle = gold;
-  geoLayer.ctx.lineCap = "round";
-  geoLayer.ctx.lineWidth = rayWidth;
-
-  const innerR = minD * 0.12;
-  const outerR = minD * 0.46;
-  for (let i = 0; i < rayCount; i++) {
-    const a = (Math.PI * 2 * i) / rayCount;
-    geoLayer.ctx.beginPath();
-    geoLayer.ctx.moveTo(cx + Math.cos(a) * innerR, cy + Math.sin(a) * innerR);
-    geoLayer.ctx.lineTo(cx + Math.cos(a) * outerR, cy + Math.sin(a) * outerR);
-    geoLayer.ctx.stroke();
-  }
-  geoLayer.ctx.restore();
-
-  // Halo ring
-  geoLayer.ctx.save();
-  geoLayer.ctx.globalAlpha = 0.95;
-  geoLayer.ctx.strokeStyle = gold;
-  geoLayer.ctx.lineWidth = haloWidth;
-  geoLayer.ctx.beginPath();
-  geoLayer.ctx.arc(cx, cy, minD * 0.245, 0, Math.PI * 2);
-  geoLayer.ctx.stroke();
-  geoLayer.ctx.restore();
-
-  unclip(geoLayer.ctx);
-
-  // ---------- Icon layer: wings + bolt ----------
-  clipToShield(iconLayer.ctx);
-
-  // Helpers: simple “Roman-style” wing using a tapered feather fan
-  function drawWing(ctx, x, y, dir /* -1 left, +1 right */, scale = 1) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(dir, 1);
-    ctx.scale(scale, scale);
-
-    // Wing main body
-    ctx.fillStyle = ivory;
-    ctx.globalAlpha = 0.92;
-    ctx.beginPath();
-    // A fat teardrop-ish wing silhouette
-    ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(120, -40, 210, -10);
-    ctx.quadraticCurveTo(170, 60, 60, 80);
-    ctx.quadraticCurveTo(15, 55, 0, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    // Feather lines
-    ctx.globalAlpha = 0.35;
-    ctx.strokeStyle = gold;
-    ctx.lineWidth = 3;
-    for (let i = 0; i < 7; i++) {
-      const t = i / 6;
-      const fx0 = 20 + t * 25;
-      const fy0 = -5 + t * 12;
-      const fx1 = 190 - t * 25;
-      const fy1 = -5 + t * 15 + (t * t) * 35;
-      ctx.beginPath();
-      ctx.moveTo(fx0, fy0);
-      ctx.quadraticCurveTo(110, 20 + t * 10, fx1, fy1);
-      ctx.stroke();
-    }
-
-    // Outer edge highlight
-    ctx.globalAlpha = 0.85;
-    ctx.strokeStyle = gold;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(120, -40, 210, -10);
-    ctx.quadraticCurveTo(170, 60, 60, 80);
-    ctx.quadraticCurveTo(15, 55, 0, 0);
-    ctx.stroke();
-
-    ctx.restore();
-  }
- }
-
 // ============================================================
 // Init
 // ============================================================
@@ -1556,10 +1461,8 @@ async function boot(){
   warmBaseFill();
   renderLayersList();
   renderStampList();
-
   drawGuides();
   compositeToDisplay();
-
   await refreshDesignList();
   if (activeDesignId) await loadDesignIntoCanvas(activeDesignId);
 }
