@@ -121,6 +121,27 @@ body{
 .design-title{ font-weight:750; }
 .design-meta{ color: var(--muted); font-size: 12px; margin-top:4px; }
 
+
+.design-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.design-del-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.design-del-btn:hover {
+  opacity: 1;
+  color: #c0392b;
+}
+
 .stage{
   position:relative;
   min-width:0;

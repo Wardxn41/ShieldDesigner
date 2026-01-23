@@ -8,7 +8,7 @@
 // - PNG Stamps (non-destructive objects; minimal + robust)
 // - Server-backed designs via ./Storage/repo.js
 // ============================================================
-import { listDesigns, createDesign, saveDesign, loadDesign } from "./Storage/repo.js";
+import { listDesigns, createDesign, saveDesign, loadDesign, deleteDesign, } from "./Storage/repo.js";
 const UI_KEY = "roman_shield_ui_v1";
 const appRoot = document.getElementById("appRoot");
 
@@ -1345,20 +1345,59 @@ function renderDesignList() {
     .forEach(d => {
       const el = document.createElement("div");
       el.className = "design-card" + (d.id === activeDesignId ? " active" : "");
+
+      // 1) Add delete button into the card markup
       el.innerHTML = `
-        <div class="design-title">${escapeHtml(d.name)}</div>
+        <div class="design-title-row">
+          <div class="design-title">${escapeHtml(d.name)}</div>
+          <button class="design-del" type="button" title="Delete">🗑</button>
+        </div>
         <div class="design-meta">${new Date(normalizeUpdated(d)).toLocaleString()}</div>
       `;
 
+      // 2) Clicking the card loads it
       el.addEventListener("click", async () => {
         activeDesignId = d.id;
         renderDesignList();
         await loadDesignIntoCanvas(d.id);
       });
 
+      // 3) Clicking delete deletes it (STOP propagation so it doesn't load)
+      const delBtn = el.querySelector(".design-del");
+      delBtn?.addEventListener("click", async (e) => {
+        e.stopPropagation();
+
+        const ok = confirm(
+          `Delete "${d.name}"?\n\nThis will permanently delete the design and its layer images.`
+        );
+        if (!ok) return;
+
+        try {
+          await deleteDesign(d.id);
+
+          if (activeDesignId === d.id) activeDesignId = null;
+
+          await refreshDesignList();
+
+          if (designs[0]) {
+            activeDesignId = designs[0].id;
+            await loadDesignIntoCanvas(activeDesignId);
+          } else {
+            initDefaultLayers();
+            warmBaseFill();
+            renderLayersList();
+            compositeToDisplay();
+          }
+        } catch (err) {
+          console.error(err);
+          alert("Delete failed. Check console/server logs.");
+        }
+      });
+
       designListEl.appendChild(el);
     });
 }
+
 
 async function loadDesignIntoCanvas(id){
   const d = await loadDesign(id);
@@ -1428,7 +1467,6 @@ async function loadDesignIntoCanvas(id){
 
 
 newDesignBtn?.addEventListener("click", createNewDesign);
-//delDesignBtn?.addEventListener("click", delNewDesign);
 
 async function createNewDesign(){
   const name = prompt("Design name?", `Design ${designs.length+1}`);
@@ -1441,9 +1479,9 @@ async function createNewDesign(){
   warmBaseFill();
   compositeToDisplay();
   renderLayersList();
-
   await saveActiveToDesigns();
 }
+
 
 async function saveActiveToDesigns(){
   if (!activeDesignId) return;

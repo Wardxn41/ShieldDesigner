@@ -13,12 +13,6 @@ app = Flask(__name__)
 
 # ============================================================
 # CACHING ADDITION #1 (Server RAM cache + ETag helper)
-# What it does:
-# - Keeps hot layer PNG bytes in memory so Flask doesn't re-fetch from Supabase
-# - Generates a strong ETag so the browser can do conditional GETs (304)
-# Why we need it:
-# - Switching designs stops being "Supabase-latency bound"
-# - Browser and server can both skip redundant work
 # ============================================================
 LayerKey = Tuple[str, int]
 _layer_png_cache: Dict[LayerKey, Tuple[bytes, str]] = {}  # (png_bytes, etag)
@@ -120,6 +114,36 @@ def rest_patch(path: str, payload, params=None):
         raise RuntimeError(f"Supabase REST PATCH failed: {r.status_code} {r.text}")
     return None
 
+def rest_delete(path: str, params=None):
+    headers = sb_headers_json()
+    headers["Prefer"] = "return=minimal"
+    r = requests.delete(
+        rest_url(path),
+        headers=headers,
+        params=params,
+        timeout=(5, 25),
+    )
+    if not r.ok:
+        raise RuntimeError(f"Supabase REST DELETE failed: {r.status_code} {r.text}")
+    return None
+
+def storage_delete_object(bucket: str, object_path: str):
+    # For deletes, we don't need x-upsert or a specific content type.
+    key = _service_key()
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+    }
+    r = requests.delete(
+        storage_object_url(bucket, object_path),
+        headers=headers,
+        timeout=(5, 25),
+    )
+    # Treat missing objects as success (idempotent delete)
+    if r.status_code in (200, 204, 404):
+        return
+    raise RuntimeError(f"Supabase Storage DELETE failed: {r.status_code} {r.text}")
+
 
 # ---------- Pages ----------
 @app.route("/")
@@ -180,12 +204,6 @@ def api_load_design(design_id):
 
     # ============================================================
     # CACHING ADDITION #2 (Cache-busting version token for URLs)
-    # What it does:
-    # - Adds ?v=<updated_ms> to each png_url returned by /api/designs/<id>
-    # Why we need it:
-    # - We will tell the browser "cache these PNGs for a long time"
-    # - When you save, updated_at changes, so v changes, so URL changes,
-    #   so the browser fetches the NEW PNG once (no stale layers).
     # ============================================================
     updated = design.get("updated_at")
     ms = 0
@@ -218,13 +236,6 @@ def api_load_design(design_id):
 def api_layer_png(design_id, layer_index: int):
     # ============================================================
     # CACHING ADDITION #3 (Browser caching + conditional GET + RAM cache)
-    # What it does:
-    # - RAM cache: store (bytes, etag) in _layer_png_cache for hot switching
-    # - ETag: browser can revalidate with If-None-Match and get 304
-    # - Cache-Control: browser can keep PNGs for a long time
-    # Why we need it:
-    # - Eliminates repeated Supabase fetches when switching designs
-    # - Eliminates repeated downloads/decodes in the browser
     # ============================================================
     key: LayerKey = (design_id, int(layer_index))
 
@@ -257,6 +268,59 @@ def api_layer_png(design_id, layer_index: int):
     resp.headers["ETag"] = etag
     resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return resp
+
+
+# ---------- API: Delete Design (design row + layers rows + storage pngs + cache) ----------
+@app.route("/api/designs/<design_id>", methods = ["DELETE"])
+def api_delete_design(design_id):
+    """
+    Deletes:
+      - Storage objects for each layer PNG under layers/<design_id>/layer_<idx>.png
+      - Rows in layers table where design_id = <design_id>
+      - Row in designs table where id = <design_id>
+    Also clears server RAM cache entries for this design.
+    """
+    try:
+        # Grab layer rows so we know which storage objects to delete
+        layer_rows = rest_get(
+            "layers",
+            params={"select": "layer_index,png_path", "design_id": f"eq.{design_id}"}
+        )
+    except Exception as e:
+        return jsonify({"error": "failed reading layers", "details": str(e)}), 500
+
+    bucket = _bucket()
+
+    # Delete storage objects first (so DB delete doesn't orphan files)
+    for row in (layer_rows or []):
+        png_path = row.get("png_path")
+        if png_path:
+            try:
+                storage_delete_object(bucket, png_path)
+            except Exception as e:
+                return jsonify({
+                    "error": "failed deleting storage object",
+                    "png_path": png_path,
+                    "details": str(e)
+                }), 500
+
+        idx = row.get("layer_index")
+        if idx is not None:
+            _layer_png_cache.pop((design_id, int(idx)), None)
+
+    # Delete DB rows
+    try:
+        rest_delete("layers", params={"design_id": f"eq.{design_id}"})
+        rest_delete("designs", params={"id": f"eq.{design_id}"})
+    except Exception as e:
+        return jsonify({"error": "failed deleting db rows", "details": str(e)}), 500
+
+    # Extra cache purge safety
+    for k in list(_layer_png_cache.keys()):
+        if k[0] == design_id:
+            _layer_png_cache.pop(k, None)
+
+    return jsonify({"ok": True})
 
 
 # ---------- API: Save (layers + stamps) ----------
@@ -296,10 +360,6 @@ def api_save_design(design_id):
 
         # ============================================================
         # CACHING ADDITION #4 (Invalidate server RAM cache on save)
-        # What it does:
-        # - Removes the cached bytes so future requests fetch the new PNG once.
-        # Why we need it:
-        # - Prevents Flask from serving old bytes after you upload a new layer.
         # ============================================================
         _layer_png_cache.pop((design_id, idx), None)
 

@@ -38,6 +38,18 @@ export async function createDesign(name = "Untitled") {
   });
 }
 
+export async function deleteDesign(id) {
+  const r = await fetch(`/api/designs/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    throw new Error(`deleteDesign failed: ${r.status} ${t}`);
+  }
+  return await r.json().catch(() => ({ ok: true }));
+}
+
+
 /**
  * Save everything:
  * - upload layer PNGs (via Flask -> Supabase Storage using service key)
