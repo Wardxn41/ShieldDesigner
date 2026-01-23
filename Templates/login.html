@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Legion Access</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    /* Theme-matching login card (bronze + dark leather vibe) */
+    .login-wrap{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      background:
+        radial-gradient(1200px 800px at 50% 30%, rgba(214,168,75,.12), rgba(0,0,0,0) 60%),
+        radial-gradient(900px 600px at 20% 70%, rgba(214,168,75,.08), rgba(0,0,0,0) 55%),
+        #0b0b0c;
+    }
+    .login-card{
+      width:min(520px, 92vw);
+      border-radius:16px;
+      padding:22px 22px 18px;
+      background: rgba(16,16,18,.86);
+      border:1px solid rgba(214,168,75,.30);
+      box-shadow: 0 18px 60px rgba(0,0,0,.55);
+      backdrop-filter: blur(6px);
+    }
+    .login-title{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px;
+      margin-bottom:10px;
+    }
+    .login-title h1{
+      font-size:18px; margin:0; letter-spacing:.5px;
+      color: rgba(214,168,75,.95);
+    }
+    .login-sub{
+      margin:0 0 16px;
+      color: rgba(255,255,255,.70);
+      font-size:13px;
+      line-height:1.35;
+    }
+    .login-field{ margin:10px 0; }
+    .login-field label{
+      display:block;
+      color: rgba(255,255,255,.70);
+      font-size:12px;
+      margin-bottom:6px;
+    }
+    .login-field input{
+      width:100%;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid rgba(214,168,75,.22);
+      background: rgba(0,0,0,.35);
+      color: rgba(255,255,255,.92);
+      outline:none;
+    }
+    .login-field input:focus{
+      border-color: rgba(214,168,75,.55);
+      box-shadow: 0 0 0 3px rgba(214,168,75,.12);
+    }
+    .login-actions{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-top:14px;
+    }
+    .login-btn{
+      padding:10px 14px;
+      border-radius:12px;
+      border:1px solid rgba(214,168,75,.38);
+      background: rgba(214,168,75,.16);
+      color: rgba(255,255,255,.92);
+      cursor:pointer;
+      font-weight:600;
+    }
+    .login-btn:hover{ background: rgba(214,168,75,.22); }
+    .login-error{
+      margin:10px 0 0;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid rgba(255,80,80,.35);
+      background: rgba(255,80,80,.10);
+      color: rgba(255,220,220,.95);
+      font-size:13px;
+    }
+    .login-foot{
+      margin-top:14px;
+      font-size:12px;
+      color: rgba(255,255,255,.50);
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-title">
+        <h1>Legion Access</h1>
+        <div style="color:rgba(214,168,75,.75); font-size:12px;">ROMAN SHIELD DESIGNER</div>
+      </div>
+
+      <p class="login-sub">
+        Sign in to access designs and projection tools.
+      </p>
+
+      {% if error %}
+        <div class="login-error">{{ error }}</div>
+      {% endif %}
+
+      <form method="POST" action="/login" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="next" value="{{ next }}">
+
+        <div class="login-field">
+          <label>Username</label>
+          <input name="username" type="text" required />
+        </div>
+
+        <div class="login-field">
+          <label>Password</label>
+          <input name="password" type="password" required />
+        </div>
+
+        <div class="login-actions">
+          <button class="login-btn" type="submit">Enter the Workshop</button>
+          <div style="font-size:12px;color:rgba(255,255,255,.45);">Authorized access only</div>
+        </div>
+      </form>
+
+      <div class="login-foot">
+        Tip: set <code>SESSION_COOKIE_SECURE=True</code> when using HTTPS.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

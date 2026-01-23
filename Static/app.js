@@ -80,6 +80,8 @@ document.querySelectorAll(".panel.collapsible .panel-head").forEach(btn => {
   btn.addEventListener("click", () => btn.closest(".panel").classList.toggle("collapsed"));
 });
 
+
+
 // UI readouts
 brushSizeVal.textContent = brushSize.value;
 brushOpacityVal.textContent = Number(brushOpacity.value).toFixed(2);
@@ -440,13 +442,26 @@ function getSymmetryPoints(p) {
 // ============================================================
 let layers = [];
 let activeLayerIndex = 0;
+let forceFullUploadNextSave = true; // true on boot / after load / after add/delete layer
 
+function markLayerDirty(idx = activeLayerIndex){
+    if (layers[idx]) layers[idx].dirty = true;
+   }
+
+function markAllLayersDirty(){
+     layers.forEach(l => l.dirty = true);
+   }
+
+function clearDirtyFlags(){
+     layers.forEach(l => l.dirty = false);
+     forceFullUploadNextSave = false;
+   }
 function createLayer(name) {
   const c = document.createElement("canvas");
   c.width = displayCanvas.width;
   c.height = displayCanvas.height;
   const cctx = c.getContext("2d", { willReadFrequently: true });
-  return { id: crypto.randomUUID(), name, visible: true, canvas: c, ctx: cctx };
+  return { id: crypto.randomUUID(), name, visible: true, dirty:true, canvas: c, ctx: cctx };
 }
 
 function initDefaultLayers() {
@@ -489,9 +504,11 @@ addLayerBtn?.addEventListener("click", () => {
   redoStack = [];
   layers.push(createLayer(name));
   activeLayerIndex = layers.length - 1;
+  forceFullUploadNextSave = true;
   renderLayersList();
   compositeToDisplay();
-  saveActiveToDesigns();
+  saveActiveToDesignsDebounced();
+
 });
 
 deleteLayerBtn?.addEventListener("click", () => {
@@ -500,9 +517,11 @@ deleteLayerBtn?.addEventListener("click", () => {
   redoStack = [];
   layers.splice(activeLayerIndex, 1);
   activeLayerIndex = Math.max(0, activeLayerIndex - 1);
+  forceFullUploadNextSave = true;
   renderLayersList();
   compositeToDisplay();
-  saveActiveToDesigns();
+  saveActiveToDesignsDebounced();
+
 });
 
 // ============================================================
@@ -606,7 +625,8 @@ function deleteSelectedStamp(){
   stampObjects = stampObjects.filter(s => s.uid !== selectedStampUid);
   selectedStampUid = null;
   compositeToDisplay();
-  saveActiveToDesigns();
+  saveActiveToDesignsDebounced();
+
 }
 //key listener for resolving backspace leaving the page bug
 window.addEventListener("keydown", (e) => {
@@ -648,7 +668,8 @@ if (!stampListEl) return;
       selectedStampUid = uid;
       setMode("stamp");
       compositeToDisplay();
-      saveActiveToDesigns();
+      saveActiveToDesignsDebounced();
+
     });
     stampListEl.appendChild(btn);
   }
@@ -660,7 +681,8 @@ clearStampBtn?.addEventListener("click", () => {
   stampObjects = [];
   selectedStampUid = null;
   compositeToDisplay();
-  saveActiveToDesigns();
+  saveActiveToDesignsDebounced();
+
 });
 
 // ============================================================
@@ -906,7 +928,8 @@ function stampPointerUp(){
   stampDragging = false;
   stampDragMode = null;
   stampStart = null;
-  saveActiveToDesigns();
+  saveActiveToDesignsDebounced();
+
 }
 
 // ============================================================
@@ -1087,10 +1110,11 @@ function applyFillAtPoint(p, unfillMode=false) {
       }
     }
   }
-
   active.ctx.putImageData(img,0,0);
+  markLayerDirty(activeLayerIndex);
   compositeToDisplay();
-  saveActiveToDesigns();
+  saveActiveToDesignsDebounced();
+
 }
 
 // ============================================================
@@ -1182,7 +1206,7 @@ function moveInput(evt){
   active.ctx.globalCompositeOperation = "source-over";
   active.ctx.globalAlpha = 1;
   unclip(active.ctx);
-
+  markLayerDirty(activeLayerIndex);
   compositeToDisplay();
   last = p;
 }
@@ -1201,7 +1225,8 @@ function endInput(evt){
   evt.preventDefault();
   isDrawing = false;
   last = null;
-  saveActiveToDesigns();
+  saveActiveToDesignsDebounced();
+
 }
 
 displayCanvas.addEventListener("mousedown", startInput);
@@ -1295,7 +1320,8 @@ function undo(){
   redoStack.push(snapshotState());
   const prev = undoStack.pop();
   restoreState(prev);
-  saveActiveToDesigns();
+  saveActiveToDesignsDebounced();
+
 }
 
 function redo(){
@@ -1303,7 +1329,8 @@ function redo(){
   undoStack.push(snapshotState());
   const next = redoStack.pop();
   restoreState(next);
-  saveActiveToDesigns();
+  saveActiveToDesignsDebounced();
+
 }
 
 undoBtn?.addEventListener("click", undo);
@@ -1357,10 +1384,11 @@ function renderDesignList() {
 
       // 2) Clicking the card loads it
       el.addEventListener("click", async () => {
+        if (activeDesignId === d.id) return; // prevents reloading same design
         activeDesignId = d.id;
         renderDesignList();
         await loadDesignIntoCanvas(d.id);
-      });
+        });
 
       // 3) Clicking delete deletes it (STOP propagation so it doesn't load)
       const delBtn = el.querySelector(".design-del");
@@ -1430,14 +1458,14 @@ async function loadDesignIntoCanvas(id){
     compositeToDisplay();
     undoStack = [];
     redoStack = [];
-    renderDesignList();
+    //renderDesignList();
   }
 
   // Helper: load an image URL into an HTMLImageElement (Promise-based)
   function loadImage(url){
     return new Promise((resolve, reject) => {
       const img = new Image();
-      img.crossOrigin = "anonymous"; // safe even though same-origin; MUST be before src
+        img.crossOrigin = "anonymous"; // safe even though same-origin; MUST be before src
 
       img.onload = () => resolve(img);
       img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
@@ -1445,6 +1473,7 @@ async function loadDesignIntoCanvas(id){
       img.src = url;
     });
   }
+
 
   // Load all layer PNGs in parallel, then draw them
   await Promise.all(
@@ -1461,7 +1490,8 @@ async function loadDesignIntoCanvas(id){
       }
     })
   );
-
+  clearDirtyFlags();              // everything matches server now
+  //forceFullUploadNextSave = false;
   finish();
 }
 
@@ -1477,17 +1507,103 @@ async function createNewDesign(){
 
   initDefaultLayers();
   warmBaseFill();
+
+  markAllLayersDirty();
+  forceFullUploadNextSave = true;
   compositeToDisplay();
   renderLayersList();
-  await saveActiveToDesigns();
+  await saveActiveToDesignsDebounced();
 }
 
-
+/*
 async function saveActiveToDesigns(){
   if (!activeDesignId) return;
   await saveDesign(activeDesignId, layers, stampObjects);
   await refreshDesignList();
 }
+*/
+// ============================================================
+// Save coalescing + list refresh throttling
+// ============================================================
+
+let saveTimer = null;
+let saveInFlight = null;
+let pendingSave = false;
+
+// throttle designs list refresh
+let designsRefreshTimer = null;
+let designsRefreshInFlight = null;
+
+function touchDesignLocal(designId) {
+  // optimistic update so UI updates instantly without GET /api/designs
+  const now = Date.now();
+  const d = designs.find(x => x.id === designId);
+  if (d) d.updated = now;
+  renderDesignList();
+}
+
+async function refreshDesignListThrottled(ms = 1200) {
+  if (designsRefreshTimer) clearTimeout(designsRefreshTimer);
+
+  designsRefreshTimer = setTimeout(async () => {
+    if (designsRefreshInFlight) return; // already fetching
+    designsRefreshInFlight = (async () => {
+      try {
+        designs = await listDesigns();
+        if (!activeDesignId && designs[0]) activeDesignId = designs[0].id;
+        renderDesignList();
+      } finally {
+        designsRefreshInFlight = null;
+      }
+    })();
+  }, ms);
+}
+
+async function runSaveOnce() {
+  // serialize saves: never run two at once
+  if (saveInFlight) return;
+
+  const id = activeDesignId;
+  if (!id) return;
+
+  // optimistic UI update
+  touchDesignLocal(id);
+
+  saveInFlight = (async () => {
+    try {
+      await saveDesign(activeDesignId, layers, stampObjects, { forceFull: forceFullUploadNextSave });
+      clearDirtyFlags();
+
+    } finally {
+      saveInFlight = null;
+    }
+  })();
+
+  await saveInFlight;
+
+  // If something changed while we were saving, run one more save.
+  if (pendingSave) {
+    pendingSave = false;
+    return runSaveOnce();
+  }
+
+  // Optional: refresh designs list occasionally (not every time)
+  refreshDesignListThrottled(1500);
+}
+
+function saveActiveToDesignsDebounced(delay = 350) {
+  if (!activeDesignId) return;
+
+  // if a save is running, mark that we need another save afterwards
+  if (saveInFlight) pendingSave = true;
+
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    runSaveOnce().catch(err => console.error("Save failed:", err));
+  }, delay);
+}
+
+
 
 // ============================================================
 // Init
@@ -1497,6 +1613,8 @@ async function boot(){
   buildShieldMask();
   initDefaultLayers();
   warmBaseFill();
+  markAllLayersDirty();
+  forceFullUploadNextSave = true;
   renderLayersList();
   renderStampList();
   drawGuides();
