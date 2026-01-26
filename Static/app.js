@@ -552,20 +552,35 @@ function warmBaseFill(){
     animals(several)
  */
 const STAMPS = [
- //3 so far
- { id: "arrow", name: "Arrow", src: "/static/stamps/arrow.png", tintable: true },
- { id: "wingR", name: "WingRight", src: "/static/stamps/wingRight.png", tintable: true },
- { id: "wingL", name: "WingLeft", src: "/static/stamps/wingLeft.png", tintable: true },
- { id: "laurelL", name: "LaruelLeft", src: "/static/stamps/LaurelLeft.png", tintable: true },
- { id: "laurelR", name: "LaurelRight", src: "/static/stamps/LaurelRight.png", tintable: true }
+
+
+  //General Stamps
+   { id: "RectUmbo",  name: "Rectangle Umbo", src: "/static/stamps/RectUmbo.png",       tintable: true, category: "General" },
+  { id: "RoundUmbo", name: "Rounded Umbo",   src: "/static/stamps/RoundedUmbo(badquality).png", tintable: true, category: "General" },
+  // Republic
+  { id: "arrow",   name: "Arrow",       src: "/static/stamps/arrow.png",                tintable: true,  category: "republic" },
+
+  // Imperial
+  { id: "wingL",   name: "WingLeft",    src: "/static/stamps/wingLeft.png",            tintable: true,  category: "imperial" },
+  { id: "wingR",   name: "WingRight",   src: "/static/stamps/wingRight.png",           tintable: true,  category: "imperial" },
+  { id: "laurelL", name: "LaurelLeft",  src: "/static/stamps/LaurelLeft.png",          tintable: true,  category: "imperial" },
+  { id: "laurelR", name: "LaurelRight", src: "/static/stamps/LaurelRight.png",         tintable: true,  category: "imperial" },
+
+  // Anime
+  { id: "jujutsuS", name: "JujutsuSwirl", src: "/static/stamps/jujutsuSwirl.png",      tintable: true,  category: "anime" },
+  { id: "Mahoraga", name: "Mahoraga",     src: "/static/stamps/MahoragaShield.png",    tintable: true,  category: "anime" },
+  { id: "gojo",     name: "Gojo",         src: "/static/stamps/gogojoke.png",          tintable: false, category: "anime" },
 ];
+
 
 let stampObjects = [];       // [{uid, stampId, x,y, rot, sx, sy, flipX, flipY, baseSize, color, opacity}]
 let selectedStampUid = null; // uid of selected stamp
 const stampImgCache = new Map();     // stampId -> Image
 const stampLoaded   = new Map();     // stampId -> boolean
 const tintedCache   = new Map();     // `${stampId}|${color}` -> canvas
-const HANDLE_SIZE = 10;
+const HANDLE_SIZE = 10;                 // visual size (keep small & clean)
+const HANDLE_HIT_RADIUS = uiPxToCanvas(18); // hit area (big & comfy)
+const ROTATE_HIT_RADIUS = uiPxToCanvas(22); // rotate needs even more
 const ROTATE_HANDLE_DIST = 30;
 const DEFAULT_STAMP_SIZE = 120;
 
@@ -640,50 +655,138 @@ window.addEventListener("keydown", (e) => {
   }
 }, { passive: false });
 
-function renderStampList(){
-if (!stampListEl) return;
+const STAMP_FOLDERS = [
+  { id: "General", label: "General"},
+  { id: "republic", label: "Republic" },
+  { id: "imperial", label: "Imperial" },
+  { id: "anime", label: "Anime" },
+];
+
+const STAMP_FOLDER_STATE_KEY = "stamp_folders_open_v1";
+let openFolders = new Set(JSON.parse(localStorage.getItem(STAMP_FOLDER_STATE_KEY) || "[]"));
+
+function saveFolderState() {
+  localStorage.setItem(STAMP_FOLDER_STATE_KEY, JSON.stringify([...openFolders]));
+}
+//Helper: stopping globbing at spawn
+function findSpawnPos() {
+  const cx = displayCanvas.width / 2;
+  const cy = displayCanvas.height / 2;
+
+  // spiral search outward
+  const step = 18;
+  const maxR = 260;
+
+  for (let r = 0; r <= maxR; r += step) {
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      if (!isPointTooCloseToExistingStamps(x, y)) return { x, y };
+    }
+  }
+
+  // fallback: slight jitter
+  return { x: cx + (Math.random() - 0.5) * 80, y: cy + (Math.random() - 0.5) * 80 };
+}
+
+function isPointTooCloseToExistingStamps(x, y) {
+  const minDist = 70; // tune
+  for (const s of stampObjects) {
+    const dx = s.x - x;
+    const dy = s.y - y;
+    if ((dx*dx + dy*dy) < (minDist*minDist)) return true;
+  }
+  return false;
+}
+function addStampToCanvas(s) {
+  // This is exactly your existing click behavior, just extracted so we can reuse it.
+  const uid = crypto.randomUUID();
+  const base = Number(stampSize?.value || DEFAULT_STAMP_SIZE);
+const { x, y } = findSpawnPos();
+
+  stampObjects.push({
+    uid,
+    stampId: s.id,
+    x,
+    y,
+    rot: (Number(stampRot?.value || 0) * Math.PI) / 180,
+    sx: 1, sy: 1,
+    flipX: false, flipY: false,
+    baseSize: base,
+    color: colorPicker?.value || "#ffffff",
+    opacity: 1,
+  });
+
+  selectedStampUid = uid;
+  setMode("stamp");
+  compositeToDisplay();
+  saveActiveToDesignsDebounced();
+}
+
+function renderStampList() {
+  if (!stampListEl) return;
   stampListEl.innerHTML = "";
-  for (const s of STAMPS){
-    const btn = document.createElement("button");
-    btn.className = "stamp-item";
-    btn.textContent = s.name;
-    btn.addEventListener("click", () => {
-      // add new stamp centered
-      const uid = crypto.randomUUID();
-      const base = Number(stampSize?.value || DEFAULT_STAMP_SIZE);
-      stampObjects.push({
-        uid,
-        stampId: s.id,
-        x: displayCanvas.width/2,
-        y: displayCanvas.height/2,
-        rot: (Number(stampRot?.value || 0) * Math.PI) / 180,
-        sx: 1, sy: 1,
-        flipX: false, flipY: false,
-        baseSize: base,
-        color: colorPicker?.value || "#ffffff",
-        opacity: 1,
 
+  for (const folder of STAMP_FOLDERS) {
+    const items = STAMPS.filter(s => (s.category || "imperial") === folder.id);
 
-      });
-      selectedStampUid = uid;
-      setMode("stamp");
-      compositeToDisplay();
-      saveActiveToDesignsDebounced();
+    // Folder header row
+    const header = document.createElement("button");
+    header.type = "button";
+    header.className = "stamp-folder";
+    header.dataset.folder = folder.id;
 
+    const isOpen = openFolders.has(folder.id);
+    header.dataset.open = String(isOpen);
+
+    header.innerHTML = `
+      <span class="chev">▸</span>
+      <span class="folder-title">${folder.label}</span>
+      <span class="folder-count">${items.length}</span>
+    `;
+
+    // Children container
+    const children = document.createElement("div");
+    children.className = "stamp-folder-children";
+    children.hidden = !isOpen;
+
+    // Stamp buttons inside folder
+    for (const s of items) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "stamp-item";
+
+      // Build markup that matches your existing .stamp-item CSS grid
+      btn.innerHTML = `
+        <div class="stamp-thumb">
+          <img src="${s.src}" alt="" draggable="false" />
+        </div>
+        <div>
+          <div class="stamp-name">${s.name}</div>
+          <div class="stamp-desc">${folder.label}</div>
+        </div>
+      `;
+
+      btn.addEventListener("click", () => addStampToCanvas(s));
+      children.appendChild(btn);
+    }
+
+    // Toggle open/close
+    header.addEventListener("click", () => {
+      const nowOpen = !openFolders.has(folder.id);
+      if (nowOpen) openFolders.add(folder.id);
+      else openFolders.delete(folder.id);
+
+      header.dataset.open = String(nowOpen);
+      children.hidden = !nowOpen;
+      saveFolderState();
     });
-    stampListEl.appendChild(btn);
+
+    stampListEl.appendChild(header);
+    stampListEl.appendChild(children);
   }
 }
 
-clearStampBtn?.addEventListener("click", () => {
-  pushUndo();
-  redoStack = [];
-  stampObjects = [];
-  selectedStampUid = null;
-  compositeToDisplay();
-  saveActiveToDesignsDebounced();
-
-});
 
 // ============================================================
 // Stamp selection overlay (guidesCanvas)
@@ -785,6 +888,10 @@ const h = naturalH * scaleToTarget;
 
   obj.__handles = { corners, mids, rotHandle, topMid };
 }
+function uiPxToCanvas(px){
+  const r = displayCanvas.getBoundingClientRect();
+  return px * (displayCanvas.width / r.width);
+}
 
 // Handle hit-test
 function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
@@ -799,8 +906,13 @@ function hitTestHandle(p){
     { type:"rotate", idx:0, pt: rotHandle },
   ];
 
-  for (const h of all){
-    if (dist(p, h.pt) <= HANDLE_SIZE) return h;
+    for (const h of all){
+    const r =
+      h.type === "rotate"
+        ? ROTATE_HIT_RADIUS
+        : HANDLE_HIT_RADIUS;
+
+    if (dist(p, h.pt) <= r) return h;
   }
   return null;
 }
@@ -859,41 +971,49 @@ let stampDragMode = null; // "move" | "scale" | "rotate"
 let stampStart = null;
 
 function stampPointerDown(p){
-  const obj = getSelectedStamp();
+  const cur = getSelectedStamp();
 
-  // If clicking on a stamp while in stamp mode, select it
+  // 1) If a selected stamp exists, test its handles FIRST
+  if (cur){
+    compositeToDisplay(); // ensure __handles exist
+    const h = hitTestHandle(p);
+    if (h){
+      stampDragging = true;
+      stampDragMode = h.type === "rotate" ? "rotate" : "scale";
+      stampStart = {
+        p0: { ...p },
+        x0: cur.x, y0: cur.y,
+        rot0: cur.rot,
+        sx0: cur.sx, sy0: cur.sy,
+        base0: cur.baseSize,
+      };
+      return; // 🔒 do NOT reselect anything else
+    }
+  }
+
+  // 2) Otherwise do normal selection
   const hit = hitTestStampObject(p);
-  if (hit && (!obj || hit.uid !== obj.uid)) {
+  if (hit){
     selectedStampUid = hit.uid;
     compositeToDisplay();
     drawGuides();
   }
 
-  const cur = getSelectedStamp();
-  if (!cur) return;
+  // 3) Start move drag if applicable
+  const obj = getSelectedStamp();
+  if (!obj) return;
 
-  // ensure overlay handles are computed
-  compositeToDisplay(); // calls drawGuides -> drawStampSelectionOverlay -> __handles
-
-  const h = hitTestHandle(p);
   stampDragging = true;
-
-  if (h?.type === "rotate"){
-    stampDragMode = "rotate";
-  } else if (h){
-    stampDragMode = "scale";
-  } else {
-    stampDragMode = "move";
-  }
-
+  stampDragMode = "move";
   stampStart = {
     p0: { ...p },
-    x0: cur.x, y0: cur.y,
-    rot0: cur.rot,
-    sx0: cur.sx, sy0: cur.sy,
-    base0: cur.baseSize,
+    x0: obj.x, y0: obj.y,
+    rot0: obj.rot,
+    sx0: obj.sx, sy0: obj.sy,
+    base0: obj.baseSize,
   };
 }
+
 
 function stampPointerMove(p){
   if (!stampDragging) return;
@@ -919,6 +1039,37 @@ function stampPointerMove(p){
     obj.sx = stampStart.sx0 * s;
     obj.sy = stampStart.sy0 * s;
   }
+displayCanvas.addEventListener("pointerdown", (e) => {
+  const { x, y } = getPointerPos(e);
+
+  // 1) If we're in stamp mode, check selected-stamp tools FIRST
+  const toolHit = hitTestSelectedStampTools(x, y);
+  if (toolHit) {
+    e.preventDefault();
+    displayCanvas.setPointerCapture(e.pointerId);
+
+    activeDrag = {
+      kind: toolHit.type,      // "scale"/"rotate"/"move"
+      handle: toolHit.handle,  // if scale/rotate uses a handle
+      stampUid: toolHit.stampUid,
+      startX: x,
+      startY: y,
+      // store initial stamp transform values too:
+      startStamp: snapshotStamp(toolHit.stampUid),
+    };
+
+    return; // <-- CRITICAL: do not run selection below
+  }
+
+  // 2) Otherwise do normal selection
+  const uid = pickTopmostStampAt(x, y); // your existing hit-test that finds the top stamp
+  if (uid) {
+    selectedStampUid = uid;
+    bringStampToFront(uid); // (optional) see below
+    compositeToDisplay();
+    saveActiveToDesignsDebounced();
+  }
+});
 
   compositeToDisplay();
 }
@@ -1460,6 +1611,35 @@ async function loadDesignIntoCanvas(id){
     redoStack = [];
     //renderDesignList();
   }
+
+  //Helper: stamp selection prioritization
+  function getPointerPos(e) {
+  const r = displayCanvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) * (displayCanvas.width / r.width),
+    y: (e.clientY - r.top) * (displayCanvas.height / r.height),
+  };
+}
+
+// Returns: { type: "scale"|"rotate"|"move", handle?: "nw"|"ne"|..., stampUid } or null
+function hitTestSelectedStampTools(px, py) {
+  if (!selectedStampUid) return null;
+  const s = stampObjects.find(o => o.uid === selectedStampUid);
+  if (!s) return null;
+
+  // IMPORTANT: use your existing math for stamp bounds/transform if you have it.
+  // The key idea is: test handles first, then body.
+  const hit = hitTestStampHandles(s, px, py); // <-- you likely already have something like this
+  if (hit) return { type: hit.type, handle: hit.handle, stampUid: s.uid };
+
+  if (pointInStamp(s, px, py)) {             // <-- and something like this
+    return { type: "move", stampUid: s.uid };
+  }
+  return null;
+}
+
+
+
 
   // Helper: load an image URL into an HTMLImageElement (Promise-based)
   function loadImage(url){

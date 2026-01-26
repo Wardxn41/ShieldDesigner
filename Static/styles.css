@@ -188,7 +188,7 @@ body{
 }
 
 
-/* Panels (right sidebar) */
+/* Panels (right sidebar)  --------------------------------------------------------------------------------------------- Right Sidebar*/
 .panel{
   background: linear-gradient(180deg, rgba(36,26,20,.96), rgba(28,20,16,.96));
   border:1px solid var(--border);
@@ -252,7 +252,7 @@ body{
 }
 
 
-/* Buttons */
+/* Buttons  --------------------------------------------------------------------------------------------- Buttons*/
 .btn{
   border:1px solid rgba(214,168,75,.25);
   background: rgba(214,168,75,.12);
@@ -274,7 +274,7 @@ body{
   border-color: rgba(214,168,75,.75);
 }
 
-/* Sidebar minimize button */
+/* Sidebar minimize button --------------------------------------------------------------------------------------------- Minimize Buttons */
 .sidebar-min-btn{
   margin-top: auto;
   width: 100%;
@@ -313,7 +313,7 @@ body{
 .app.hide-left  #restoreLeftBtn{ display:flex; }
 .app.hide-right #restoreRightBtn{ display:flex; }
 
-/* Stamps */
+/* Stamps ---------------------------------------------------------------------------------------------Stamps*/
 .stamp-list{
   margin-top:10px;
   display:flex;
@@ -348,7 +348,60 @@ body{
 .stamp-name{ font-weight:850; }
 .stamp-desc{ color: var(--muted); font-size: 12px; margin-top:4px; }
 
-/* Layers */
+/* Folder headers inside the stamp list */
+.stamp-folder{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border-radius: var(--radius);
+  border:1px solid var(--border);
+  background: linear-gradient(180deg, var(--panel), var(--panel2));
+  cursor:pointer;
+  box-shadow: 0 6px 18px rgba(0,0,0,.20);
+}
+
+.stamp-folder .chev{
+  width:16px;
+  display:inline-block;
+  transition: transform 120ms ease;
+}
+
+.stamp-folder[data-open="true"] .chev{
+  transform: rotate(90deg);
+}
+
+.stamp-folder .folder-title{
+  font-weight: 850;
+}
+
+.stamp-folder .folder-count{
+  margin-left:auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Children list indentation */
+.stamp-folder-children{
+  margin-top:8px;
+  margin-bottom:12px;
+  padding-left:14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+/* Make sure the thumb image behaves */
+.stamp-thumb img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  pointer-events:none;
+  user-select:none;
+}
+
+
+/* Layers  --------------------------------------------------------------------------------------------- Layer*/
 .layers-list{
   margin-top:10px;
   display:flex;

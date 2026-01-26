@@ -22,7 +22,7 @@ print("Login configured:", bool(os.getenv("ADMIN_USER")) and bool(os.getenv("ADM
 
 
 from werkzeug.security import generate_password_hash
-print(generate_password_hash("PerseusAndromeda"), method = "scrypt")
+print(generate_password_hash("PerseusAndromeda"))
 
 # IMPORTANT: set this in .env as a long random string
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "") or secrets.token_hex(32)
