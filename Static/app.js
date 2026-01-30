@@ -18,6 +18,23 @@ const guidesCanvas  = document.getElementById("guidesCanvas");
 const dctx = displayCanvas.getContext("2d", { willReadFrequently: true });
 const gctx = guidesCanvas.getContext("2d");
 
+// ============================================================
+// Render scheduler (RAF-coalesced)
+// - Use requestRender() for high-frequency updates (pointermove, drag, draw)
+// - Coalesces many state changes into a single composite per animation frame
+// ============================================================
+let _renderQueued = false;
+function requestRender(){
+  if (_renderQueued) return;
+  _renderQueued = true;
+  requestAnimationFrame(() => {
+    _renderQueued = false;
+    compositeToDisplay();
+  });
+}
+
+
+
 // Critical: overlay must never intercept input
 guidesCanvas.style.pointerEvents = "none";
 displayCanvas.style.pointerEvents = "auto";
@@ -487,7 +504,7 @@ function renderLayersList(){
         const idx = Number(eye.getAttribute("data-eye"));
         layers[idx].visible = !layers[idx].visible;
         renderLayersList();
-        compositeToDisplay();
+        requestRender();
         return;
       }
       activeLayerIndex = i;
@@ -506,7 +523,7 @@ addLayerBtn?.addEventListener("click", () => {
   activeLayerIndex = layers.length - 1;
   forceFullUploadNextSave = true;
   renderLayersList();
-  compositeToDisplay();
+  requestRender();
   saveActiveToDesignsDebounced();
 
 });
@@ -519,7 +536,7 @@ deleteLayerBtn?.addEventListener("click", () => {
   activeLayerIndex = Math.max(0, activeLayerIndex - 1);
   forceFullUploadNextSave = true;
   renderLayersList();
-  compositeToDisplay();
+  requestRender();
   saveActiveToDesignsDebounced();
 
 });
@@ -597,7 +614,7 @@ function loadStampImage(stampId){
 
 
   stampLoaded.set(stampId, false);
-  img.onload = () => { stampLoaded.set(stampId, true); compositeToDisplay(); };
+  img.onload = () => { stampLoaded.set(stampId, true); requestRender(); };
   img.onerror = () => { stampLoaded.set(stampId, false); };
 
   img.src = meta.src;
@@ -640,7 +657,7 @@ function deleteSelectedStamp(){
   redoStack = [];
   stampObjects = stampObjects.filter(s => s.uid !== selectedStampUid);
   selectedStampUid = null;
-  compositeToDisplay();
+  requestRender();
   saveActiveToDesignsDebounced();
 
 }
@@ -731,7 +748,7 @@ const { x, y } = findSpawnPos();
 
   selectedStampUid = uid;
   setMode("stamp");
-  compositeToDisplay();
+  requestRender();
   saveActiveToDesignsDebounced();
 }
 
@@ -1037,8 +1054,7 @@ function selectStampIfClicked(p){
   if (!hit) return false;
   selectedStampUid = hit.uid;
   setMode("stamp");
-  compositeToDisplay();
-  drawGuides();
+  requestRender();
   return true;
 }
 
@@ -1052,7 +1068,7 @@ function stampPointerDown(p){
 
   // 1) If a selected stamp exists, test its handles FIRST
   if (cur){
-    compositeToDisplay(); // ensure __handles exist
+    drawGuides(); // ensure __handles exist (computes __handles)
     const h = hitTestHandle(p);
     if (h){
       stampDragging = true;
@@ -1072,8 +1088,7 @@ function stampPointerDown(p){
   const hit = hitTestStampObject(p);
   if (hit){
     selectedStampUid = hit.uid;
-    compositeToDisplay();
-    drawGuides();
+    requestRender();
   }
 
   // 3) Start move drag if applicable
@@ -1143,18 +1158,18 @@ displayCanvas.addEventListener("pointerdown", (e) => {
   if (uid) {
     selectedStampUid = uid;
     bringStampToFront(uid); // (optional) see below
-    compositeToDisplay();
+    requestRender();
     saveActiveToDesignsDebounced();
   } else {
     // Clicked empty space: deselect (stamp mode only)
     if (modeSelect?.value === "stamp" && selectedStampUid) {
       selectedStampUid = null;
-      compositeToDisplay();
+      requestRender();
     }
   }
 });
 
-  compositeToDisplay();
+  requestRender();
 }
 
 function stampPointerUp(){
@@ -1346,7 +1361,7 @@ function applyFillAtPoint(p, unfillMode=false) {
   }
   active.ctx.putImageData(img,0,0);
   markLayerDirty(activeLayerIndex);
-  compositeToDisplay();
+  requestRender();
   saveActiveToDesignsDebounced();
 
 }
@@ -1441,7 +1456,7 @@ function moveInput(evt){
   active.ctx.globalAlpha = 1;
   unclip(active.ctx);
   markLayerDirty(activeLayerIndex);
-  compositeToDisplay();
+  requestRender();
   last = p;
 }
 
@@ -1497,7 +1512,7 @@ function setMode(m){
   unfillBtn?.classList.toggle("selected", m==="unfill");
   stampBtn?.classList.toggle("selected", m==="stamp");
 
-  compositeToDisplay();
+  requestRender();
 }
 
 drawBtn?.addEventListener("click", () => setMode("draw"));
@@ -1539,7 +1554,7 @@ function restoreState(state){
   selectedStampUid = null;
 
   renderLayersList();
-  compositeToDisplay();
+  requestRender();
 }
 
 function pushUndo(){
@@ -1658,7 +1673,7 @@ function renderDesignList() {
             initDefaultLayers();
             warmBaseFill();
             renderLayersList();
-            compositeToDisplay();
+            requestRender();
           }
         } catch (err) {
           console.error(err);
@@ -1685,7 +1700,7 @@ async function loadDesignIntoCanvas(id){
   if (!Array.isArray(d.layers) || d.layers.length === 0) {
     initDefaultLayers();
     warmBaseFill();
-    compositeToDisplay();
+    requestRender();
     renderLayersList();
     return;
   }
@@ -1699,7 +1714,7 @@ async function loadDesignIntoCanvas(id){
   function finish(){
     activeLayerIndex = Math.min(1, layers.length - 1);
     renderLayersList();
-    compositeToDisplay();
+    requestRender();
     undoStack = [];
     redoStack = [];
     //renderDesignList();
@@ -1783,7 +1798,7 @@ async function createNewDesign(){
 
   markAllLayersDirty();
   forceFullUploadNextSave = true;
-  compositeToDisplay();
+  requestRender();
   renderLayersList();
   await saveActiveToDesignsDebounced();
 }
@@ -1891,7 +1906,7 @@ async function boot(){
   renderLayersList();
   renderStampList();
   drawGuides();
-  compositeToDisplay();
+  requestRender();
   await refreshDesignList();
   if (activeDesignId) await loadDesignIntoCanvas(activeDesignId);
 }
