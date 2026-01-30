@@ -8,7 +8,7 @@
 // - PNG Stamps (non-destructive objects; minimal + robust)
 // - Server-backed designs via ./Storage/repo.js
 // ============================================================
-import { listDesigns, createDesign, saveDesign, loadDesign, deleteDesign, } from "./Storage/repo.js";
+import { listDesigns, createDesign, saveDesign, loadDesign, deleteDesign, renameDesign, } from "./Storage/repo.js";
 const UI_KEY = "roman_shield_ui_v1";
 const appRoot = document.getElementById("appRoot");
 
@@ -555,8 +555,8 @@ const STAMPS = [
 
 
   //General Stamps
-   { id: "RectUmbo",  name: "Rectangle Umbo", src: "/static/stamps/RectUmbo.png",       tintable: true, category: "General" },
-  { id: "RoundUmbo", name: "Rounded Umbo",   src: "/static/stamps/RoundedUmbo(badquality).png", tintable: true, category: "General" },
+   { id: "RectUmbo",  name: "Rectangle Umbo", src: "/static/stamps/RectUmbo.png",       tintable: true, category: "General", subfolder: "Umbos" },
+  { id: "RoundUmbo", name: "Rounded Umbo",   src: "/static/stamps/RoundedUmbo(badquality).png", tintable: true, category: "General", subfolder: "Umbos" },
   // Republic
   { id: "arrow",   name: "Arrow",       src: "/static/stamps/arrow.png",                tintable: true,  category: "republic" },
 
@@ -570,6 +570,7 @@ const STAMPS = [
   { id: "jujutsuS", name: "JujutsuSwirl", src: "/static/stamps/jujutsuSwirl.png",      tintable: true,  category: "anime" },
   { id: "Mahoraga", name: "Mahoraga",     src: "/static/stamps/MahoragaShield.png",    tintable: true,  category: "anime" },
   { id: "gojo",     name: "Gojo",         src: "/static/stamps/gogojoke.png",          tintable: false, category: "anime" },
+  { id: "sukunaTop",     name: "Sukuna Top",         src: "/static/stamps/sukunaTop.png",          tintable: true, category: "anime" },
 ];
 
 
@@ -668,6 +669,17 @@ let openFolders = new Set(JSON.parse(localStorage.getItem(STAMP_FOLDER_STATE_KEY
 function saveFolderState() {
   localStorage.setItem(STAMP_FOLDER_STATE_KEY, JSON.stringify([...openFolders]));
 }
+
+const STAMP_SUBFOLDER_STATE_KEY = "stamp_subfolders_open_v1";
+let openSubfolders = new Set(JSON.parse(localStorage.getItem(STAMP_SUBFOLDER_STATE_KEY) || "[]"));
+
+function saveSubfolderState() {
+  localStorage.setItem(STAMP_SUBFOLDER_STATE_KEY, JSON.stringify([...openSubfolders]));
+}
+
+function subKey(folderId, subId) {
+  return `${folderId}::${subId}`;
+}
 //Helper: stopping globbing at spawn
 function findSpawnPos() {
   const cx = displayCanvas.width / 2;
@@ -751,24 +763,89 @@ function renderStampList() {
     children.hidden = !isOpen;
 
     // Stamp buttons inside folder
+    const groups = new Map();
     for (const s of items) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "stamp-item";
+      const sub = (s.subfolder || "__default").toString();
+      if (!groups.has(sub)) groups.set(sub, []);
+      groups.get(sub).push(s);
+    }
 
-      // Build markup that matches your existing .stamp-item CSS grid
-      btn.innerHTML = `
-        <div class="stamp-thumb">
-          <img src="${s.src}" alt="" draggable="false" />
-        </div>
-        <div>
-          <div class="stamp-name">${s.name}</div>
-          <div class="stamp-desc">${folder.label}</div>
-        </div>
-      `;
+    const groupKeys = [...groups.keys()];
+    if (groupKeys.length === 1 && groupKeys[0] === "__default") {
+      // Back-compat: no subfolders
+      for (const s of items) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "stamp-item";
 
-      btn.addEventListener("click", () => addStampToCanvas(s));
-      children.appendChild(btn);
+        // Build markup that matches your existing .stamp-item CSS grid
+        btn.innerHTML = `
+          <div class="stamp-thumb">
+            <img src="${s.src}" alt="" draggable="false" />
+          </div>
+          <div>
+            <div class="stamp-name">${s.name}</div>
+            <div class="stamp-desc">${folder.label}</div>
+          </div>
+        `;
+
+        btn.addEventListener("click", () => addStampToCanvas(s));
+        children.appendChild(btn);
+      }
+    } else {
+      // Render collapsible subfolders inside this folder
+      for (const sub of groupKeys) {
+        const subItems = groups.get(sub) || [];
+        const key = subKey(folder.id, sub);
+        const subOpen = openSubfolders.has(key);
+
+        const subHeader = document.createElement("button");
+        subHeader.type = "button";
+        subHeader.className = "stamp-subfolder";
+        subHeader.dataset.open = String(subOpen);
+        subHeader.innerHTML = `
+          <span class="chev">▸</span>
+          <span class="folder-title">${escapeHtml(sub)}</span>
+          <span class="folder-count">${subItems.length}</span>
+        `;
+
+        const subChildren = document.createElement("div");
+        subChildren.className = "stamp-subfolder-children";
+        subChildren.hidden = !subOpen;
+
+        for (const s of subItems) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "stamp-item";
+
+          btn.innerHTML = `
+            <div class="stamp-thumb">
+              <img src="${s.src}" alt="" draggable="false" />
+            </div>
+            <div>
+              <div class="stamp-name">${s.name}</div>
+              <div class="stamp-desc">${escapeHtml(sub)}</div>
+            </div>
+          `;
+
+          btn.addEventListener("click", () => addStampToCanvas(s));
+          subChildren.appendChild(btn);
+        }
+
+        subHeader.addEventListener("click", (e) => {
+          e.preventDefault();
+          const nowOpen = !openSubfolders.has(key);
+          if (nowOpen) openSubfolders.add(key);
+          else openSubfolders.delete(key);
+
+          subHeader.dataset.open = String(nowOpen);
+          subChildren.hidden = !nowOpen;
+          saveSubfolderState();
+        });
+
+        children.appendChild(subHeader);
+        children.appendChild(subChildren);
+      }
     }
 
     // Toggle open/close
@@ -1068,6 +1145,12 @@ displayCanvas.addEventListener("pointerdown", (e) => {
     bringStampToFront(uid); // (optional) see below
     compositeToDisplay();
     saveActiveToDesignsDebounced();
+  } else {
+    // Clicked empty space: deselect (stamp mode only)
+    if (modeSelect?.value === "stamp" && selectedStampUid) {
+      selectedStampUid = null;
+      compositeToDisplay();
+    }
   }
 });
 
@@ -1527,8 +1610,11 @@ function renderDesignList() {
       // 1) Add delete button into the card markup
       el.innerHTML = `
         <div class="design-title-row">
-          <div class="design-title">${escapeHtml(d.name)}</div>
-          <button class="design-del" type="button" title="Delete">🗑</button>
+          <div class="design-title" data-role="designTitle">${escapeHtml(d.name)}</div>
+          <div class="design-actions">
+            <button class="design-rename" type="button" title="Rename">✎</button>
+            <button class="design-del" type="button" title="Delete">🗑</button>
+          </div>
         </div>
         <div class="design-meta">${new Date(normalizeUpdated(d)).toLocaleString()}</div>
       `;
@@ -1541,7 +1627,14 @@ function renderDesignList() {
         await loadDesignIntoCanvas(d.id);
         });
 
-      // 3) Clicking delete deletes it (STOP propagation so it doesn't load)
+      // 3) Rename (STOP propagation so it doesn't load)
+      const renameBtn = el.querySelector(".design-rename");
+      renameBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        beginDesignRename(el, d);
+      });
+
+      // 4) Clicking delete deletes it (STOP propagation so it doesn't load)
       const delBtn = el.querySelector(".design-del");
       delBtn?.addEventListener("click", async (e) => {
         e.stopPropagation();

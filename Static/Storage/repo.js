@@ -103,3 +103,13 @@ export async function saveDesign(designId, layers, stampObjects, opts = {}) {
 export async function loadDesign(designId) {
   return await fetchJSON(`/api/designs/${encodeURIComponent(designId)}`);
 }
+
+
+/** Rename a design (updates updated_at server-side) */
+export async function renameDesign(designId, name) {
+  return await fetchJSON(`/api/designs/${encodeURIComponent(designId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}

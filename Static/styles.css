@@ -483,3 +483,67 @@ body{
   .sidebar.right{ width:0; padding:0; border:none; }
   #restoreRightBtn{ display:flex; }
 }
+
+
+/* Design list actions */
+.design-actions{
+  display:flex;
+  gap:6px;
+  align-items:center;
+}
+
+.design-rename,
+.design-del{
+  border:1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 10px;
+  padding:4px 8px;
+  cursor:pointer;
+}
+
+.design-rename-input{
+  width: 100%;
+  font: inherit;
+  padding:6px 8px;
+  border-radius: 10px;
+  border:1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  outline:none;
+}
+
+
+/* Subfolders inside stamp folders */
+.stamp-subfolder{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 10px;
+  border-radius: var(--radius);
+  border:1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.08));
+  cursor:pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,.18);
+  margin-top:6px;
+}
+
+.stamp-subfolder .chev{
+  opacity:.8;
+  width:12px;
+  display:inline-block;
+  transform: rotate(0deg);
+  transition: transform .15s ease;
+}
+.stamp-subfolder[data-open="true"] .chev{
+  transform: rotate(90deg);
+}
+
+.stamp-subfolder-children{
+  margin-top:8px;
+  margin-bottom:10px;
+  padding-left:14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}

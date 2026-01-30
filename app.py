@@ -398,6 +398,32 @@ def api_load_design(design_id):
     )
 
 
+
+@app.patch("/api/designs/<design_id>")
+def api_rename_design(design_id):
+    """Rename a design.
+
+    Expects JSON: { "name": "New Name" }
+    Returns: { id, name, updated }
+    """
+    body = request.get_json(force=True, silent=False) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+    if len(name) > 120:
+        return jsonify({"error": "name too long"}), 400
+
+    now = _now_iso()
+    rest_patch(
+        "designs",
+        params={"id": f"eq.{design_id}"},
+        payload={"name": name, "updated_at": now},
+    )
+
+    dt = datetime.fromisoformat(now.replace("Z", "+00:00"))
+    return jsonify({"id": design_id, "name": name, "updated": int(dt.timestamp() * 1000)})
+
+
 @app.get("/login")
 def login():
     if is_logged_in():
