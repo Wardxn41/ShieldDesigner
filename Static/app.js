@@ -14,6 +14,12 @@ import { loadUIState, saveUIState as saveUIStateMod, applyUIState as applyUIStat
 import { createShieldMask } from "./app/canvas/shieldMask.js";
 import { getSymmetryPoints as getSymmetryPointsPure } from "./app/tools/symmetry.js";
 import { createAppContext } from "./app/core/ctx.js";
+//phase 3 adds
+import { DEFAULT_STAMP_SIZE } from "./app/core/constants.js";
+import { initReadouts } from "./app/ui/readouts.js";
+//phase 4 adds
+import { createLayersSystem } from "./app/features/layers/layersSystem.js";
+
 
 const UI_KEY = "roman_shield_ui_v1";
 
@@ -66,6 +72,7 @@ const gridToggle = ctx.dom.gridToggle;
 const ppiReadout = ctx.dom.ppiReadout;
 const clearStampBtn = ctx.dom.clearStampBtn;
 const stampListEl = ctx.dom.stampListEl;
+initReadouts(ctx.dom);
 
 // Toolbar buttons
 const drawBtn = ctx.dom.drawBtn;
@@ -104,7 +111,7 @@ document.querySelectorAll(".panel.collapsible .panel-head").forEach(btn => {
 
 
 
-// UI readouts (safe init)
+/* UI readouts (safe init)
 if (brushSizeVal && brushSize) {
   brushSizeVal.textContent = brushSize.value;
 }
@@ -133,7 +140,7 @@ brushOpacity?.addEventListener("input", () => { if (brushOpacityVal) brushOpacit
 fillTolerance?.addEventListener("input", () => { if (fillToleranceVal) fillToleranceVal.textContent = fillTolerance.value; });
 stampSize?.addEventListener("input", () => { if (stampSizeVal) stampSizeVal.textContent = stampSize.value; });
 stampRot?.addEventListener("input", () => { if (stampRotVal) stampRotVal.textContent = `${stampRot.value}°`; });
-
+*/
 function escapeHtml(s){
   return (s ?? "").replace(/[&<>"']/g, c => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
@@ -153,9 +160,10 @@ function applyUIState(){
     toolbar,
     uiState,
     inputs: { shieldWidthIn, shieldHeightIn, shieldCurveIn, gridToggle },
-    onAfterApply: () => { updatePpiReadout(); if (shieldPath) drawGuides(); }
+    onAfterApply: () => { updatePpiReadout(); }
   });
 }
+
 
 
 // ============================================================
@@ -276,7 +284,17 @@ const isOnShieldBoundary = shield.isOnShieldBoundary;
 const clipToShield = shield.clipToShield;
 const unclip = shield.unclip;
 
-
+const layersSys = createLayersSystem({
+  displayCanvas,
+  clipToShield,
+  unclip,
+  layersListEl,
+  addLayerBtn,
+  deleteLayerBtn,
+  requestRender,
+  saveActiveToDesignsDebounced,
+  escapeHtml,
+});
 
 applyUIState();
 requestRender();
@@ -363,6 +381,7 @@ function getSymmetryPoints(p) {
 
 // Layers system
 // ============================================================
+/*
 let layers = [];
 let activeLayerIndex = 0;
 let forceFullUploadNextSave = true; // true on boot / after load / after add/delete layer
@@ -459,6 +478,13 @@ function warmBaseFill(){
   base.fillRect(0,0,displayCanvas.width,displayCanvas.height);
   unclip(base);
 }
+*/
+
+
+
+
+
+
 
 // ============================================================
 // Stamp system (minimal but working)
@@ -502,11 +528,12 @@ let selectedStampUid = null; // uid of selected stamp
 const stampImgCache = new Map();     // stampId -> Image
 const stampLoaded   = new Map();     // stampId -> boolean
 const tintedCache   = new Map();     // `${stampId}|${color}` -> canvas
-const HANDLE_SIZE = 10;                 // visual size (keep small & clean)
-const HANDLE_HIT_RADIUS = uiPxToCanvas(18); // hit area (big & comfy)
-const ROTATE_HIT_RADIUS = uiPxToCanvas(22); // rotate needs even more
+const HANDLE_SIZE = 10;
 const ROTATE_HANDLE_DIST = 30;
-const DEFAULT_STAMP_SIZE = 120;
+// Radii must be computed at runtime (needs canvas rect)
+function getHandleHitRadius(){ return uiPxToCanvas(18); }
+function getRotateHitRadius(){ return uiPxToCanvas(22); }
+
 
 function loadStampImage(stampId){
   if (stampImgCache.has(stampId)) return stampImgCache.get(stampId);
@@ -908,9 +935,10 @@ function hitTestHandle(p){
 
     for (const h of all){
     const r =
-      h.type === "rotate"
-        ? ROTATE_HIT_RADIUS
-        : HANDLE_HIT_RADIUS;
+    h.type === "rotate"
+        ? getRotateHitRadius()
+        : getHandleHitRadius();
+
 
     if (dist(p, h.pt) <= r) return h;
   }
@@ -1143,7 +1171,7 @@ function compositeToDisplay() {
   shieldPath(dctx);
   dctx.clip();
 
-  for (const layer of layers) {
+  for (const layer of layersSys.layers) {
     if (!layer.visible) continue;
     dctx.drawImage(layer.canvas, 0, 0);
   }
@@ -1163,7 +1191,8 @@ function getCompositeImageData() {
   o.save();
   shieldPath(o);
   o.clip();
-  for (const layer of layers) if (layer.visible) o.drawImage(layer.canvas, 0, 0);
+  for (const layer of layersSys.layers) if (layer.visible) o.drawImage(layer.canvas, 0, 0);
+
   renderStampObjects(o);
   o.restore();
 
@@ -1242,7 +1271,7 @@ function applyFillAtPoint(p, unfillMode=false) {
   pushUndo();
   redoStack = [];
 
-  const active = layers[activeLayerIndex];
+  const active = layersSys.layers[layersSys.activeLayerIndex];
   const img = active.ctx.getImageData(0,0,displayCanvas.width, displayCanvas.height);
   const data = img.data;
 
@@ -1264,7 +1293,7 @@ function applyFillAtPoint(p, unfillMode=false) {
     }
   }
   active.ctx.putImageData(img,0,0);
-  markLayerDirty(activeLayerIndex);
+  layersSys.markLayerDirty(layersSys.activeLayerIndex);
   requestRender();
   saveActiveToDesignsDebounced();
 
@@ -1333,7 +1362,8 @@ function moveInput(evt){
 
   const ptsA = getSymmetryPoints(last);
   const ptsB = getSymmetryPoints(p);
-  const active = layers[activeLayerIndex];
+  const active = layersSys.layers[layersSys.activeLayerIndex];
+
 
   clipToShield(active.ctx);
   active.ctx.lineCap = "round";
@@ -1359,7 +1389,7 @@ function moveInput(evt){
   active.ctx.globalCompositeOperation = "source-over";
   active.ctx.globalAlpha = 1;
   unclip(active.ctx);
-  markLayerDirty(activeLayerIndex);
+  layersSys.markLayerDirty(layersSys.activeLayerIndex);
   requestRender();
   last = p;
 }
@@ -1434,31 +1464,35 @@ let redoStack = [];
 
 function snapshotState(){
   return {
-    activeLayerIndex,
-    layers: layers.map(l => ({
-      id: l.id,
-      name: l.name,
-      visible: l.visible,
-      img: l.ctx.getImageData(0,0,displayCanvas.width, displayCanvas.height)
-    })),
-    stamps: structuredClone(stampObjects),
-  };
+  activeLayerIndex: layersSys.activeLayerIndex,
+  layers: layersSys.layers.map(l => ({
+    id: l.id,
+    name: l.name,
+    visible: l.visible,
+    img: l.ctx.getImageData(0,0,displayCanvas.width, displayCanvas.height)
+  })),
+  stamps: structuredClone(stampObjects),
+};
+
 }
 
 function restoreState(state){
-  activeLayerIndex = state.activeLayerIndex;
-  layers = state.layers.map(s => {
-    const layer = createLayer(s.name);
-    layer.id = s.id;
-    layer.visible = s.visible;
-    layer.ctx.putImageData(s.img,0,0);
-    return layer;
-  });
-  stampObjects = Array.isArray(state.stamps) ? state.stamps : [];
-  selectedStampUid = null;
+  layersSys.activeLayerIndex = state.activeLayerIndex;
 
-  renderLayersList();
-  requestRender();
+layersSys.layers = state.layers.map(s => {
+  const layer = layersSys.createLayer(s.name);
+  layer.id = s.id;
+  layer.visible = s.visible;
+  layer.ctx.putImageData(s.img,0,0);
+  return layer;
+});
+
+stampObjects = Array.isArray(state.stamps) ? state.stamps : [];
+selectedStampUid = null;
+
+layersSys.renderLayersList();
+requestRender();
+
 }
 
 function pushUndo(){
@@ -1602,27 +1636,28 @@ async function loadDesignIntoCanvas(id){
 
   // layers
   if (!Array.isArray(d.layers) || d.layers.length === 0) {
-    initDefaultLayers();
-    warmBaseFill();
-    requestRender();
-    renderLayersList();
-    return;
-  }
+  layersSys.initDefaultLayers();
+  layersSys.warmBaseFill();
+  requestRender();
+  layersSys.renderLayersList();
+  return;
+}
 
-  layers = d.layers.map(l => {
-    const layer = createLayer(l.name);
-    layer.visible = l.visible;
-    return layer;
-  });
+layersSys.layers = d.layers.map(l => {
+  const layer = layersSys.createLayer(l.name);
+  layer.visible = l.visible;
+  return layer;
+});
 
-  function finish(){
-    activeLayerIndex = Math.min(1, layers.length - 1);
-    renderLayersList();
-    requestRender();
-    undoStack = [];
-    redoStack = [];
-    //renderDesignList();
-  }
+function finish(){
+  layersSys.activeLayerIndex = Math.min(1, layersSys.layers.length - 1);
+  layersSys.renderLayersList();
+  requestRender();
+  undoStack = [];
+  redoStack = [];
+}
+
+
 
   //Helper: stamp selection prioritization
   function getPointerPos(e) {
@@ -1674,17 +1709,18 @@ function hitTestSelectedStampTools(px, py) {
 
       try {
         const img = await loadImage(l.png_url);
-        layers[i].ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
-        layers[i].ctx.drawImage(img, 0, 0);
+        layersSys.layers[i].ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+        layersSys.layers[i].ctx.drawImage(img, 0, 0);
+
       } catch (err) {
         // If a layer fails to load, we just skip it (don’t block finishing).
         console.warn(err);
       }
     })
   );
-  clearDirtyFlags();              // everything matches server now
-  //forceFullUploadNextSave = false;
+  layersSys.clearDirtyFlags();
   finish();
+
 }
 
 
@@ -1697,13 +1733,14 @@ async function createNewDesign(){
   const created = await createDesign(name);
   activeDesignId = created.id;
 
-  initDefaultLayers();
-  warmBaseFill();
+  layersSys.initDefaultLayers();
+  layersSys.warmBaseFill();
 
-  markAllLayersDirty();
-  forceFullUploadNextSave = true;
+  layersSys.markAllLayersDirty();
+  layersSys.forceFullUploadNextSave = true;
   requestRender();
-  renderLayersList();
+  layersSys.renderLayersList();
+
   await saveActiveToDesignsDebounced();
 }
 
@@ -1763,8 +1800,9 @@ async function runSaveOnce() {
 
   saveInFlight = (async () => {
     try {
-      await saveDesign(activeDesignId, layers, stampObjects, { forceFull: forceFullUploadNextSave });
-      clearDirtyFlags();
+      await saveDesign(activeDesignId, layersSys.layers, stampObjects, { forceFull: layersSys.forceFullUploadNextSave });
+      layersSys.clearDirtyFlags();
+
 
     } finally {
       saveInFlight = null;
@@ -1803,11 +1841,11 @@ function saveActiveToDesignsDebounced(delay = 350) {
 async function boot(){
   setMode("draw");
   buildShieldMask();
-  initDefaultLayers();
-  warmBaseFill();
-  markAllLayersDirty();
-  forceFullUploadNextSave = true;
-  renderLayersList();
+  layersSys.initDefaultLayers();
+  layersSys.warmBaseFill();
+  layersSys.markAllLayersDirty();
+  layersSys.forceFullUploadNextSave = true;
+  layersSys.renderLayersList();
   renderStampList();
   drawGuides();
   requestRender();
