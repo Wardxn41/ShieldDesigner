@@ -9,88 +9,93 @@
 // - Server-backed designs via ./Storage/repo.js
 // ============================================================
 import { listDesigns, createDesign, saveDesign, loadDesign, deleteDesign, renameDesign, } from "./Storage/repo.js";
+import { createRenderScheduler } from "./app/core/renderScheduler.js";
+import { loadUIState, saveUIState as saveUIStateMod, applyUIState as applyUIStateMod, wireSidebarButtons } from "./app/ui/uiState.js";
+import { createShieldMask } from "./app/canvas/shieldMask.js";
+import { getSymmetryPoints as getSymmetryPointsPure } from "./app/tools/symmetry.js";
+import { createAppContext } from "./app/core/ctx.js";
+
 const UI_KEY = "roman_shield_ui_v1";
-const appRoot = document.getElementById("appRoot");
+
+// ============================================================
+// AppContext (Phase 2 refactor)
+// - Centralizes DOM + canvas lookups into one object
+// - app.js still destructures out the old variable names for now
+// ============================================================
+const ctx = createAppContext({
+  uiKey: UI_KEY,
+  storage: { listDesigns, createDesign, saveDesign, loadDesign, deleteDesign, renameDesign },
+});
+
+const appRoot = ctx.appRoot;
 
 // Canvases
-const displayCanvas = document.getElementById("displayCanvas");
-const guidesCanvas  = document.getElementById("guidesCanvas");
-const dctx = displayCanvas.getContext("2d", { willReadFrequently: true });
-const gctx = guidesCanvas.getContext("2d");
+const { displayCanvas, guidesCanvas, dctx, gctx } = ctx.canvas;
 
 // ============================================================
 // Render scheduler (RAF-coalesced)
 // - Use requestRender() for high-frequency updates (pointermove, drag, draw)
 // - Coalesces many state changes into a single composite per animation frame
 // ============================================================
-let _renderQueued = false;
-function requestRender(){
-  if (_renderQueued) return;
-  _renderQueued = true;
-  requestAnimationFrame(() => {
-    _renderQueued = false;
-    compositeToDisplay();
-  });
-}
-
-
+const render = createRenderScheduler(() => compositeToDisplay());
+function requestRender(){ render.invalidate(); }
 
 // Critical: overlay must never intercept input
 guidesCanvas.style.pointerEvents = "none";
 displayCanvas.style.pointerEvents = "auto";
 
 // Right panel controls
-const colorPicker = document.getElementById("colorPicker");
-const brushSize = document.getElementById("brushSize");
-const brushSizeVal = document.getElementById("brushSizeVal");
-const brushOpacity = document.getElementById("brushOpacity");
-const brushOpacityVal = document.getElementById("brushOpacityVal");
-const modeSelect = document.getElementById("modeSelect");
-const symmetrySelect = document.getElementById("symmetrySelect");
-const guidesToggle = document.getElementById("guidesToggle");
-const fillTolerance = document.getElementById("fillTolerance");
-const fillToleranceVal = document.getElementById("fillToleranceVal");
-const stampSize = document.getElementById("stampSize");
-const stampSizeVal = document.getElementById("stampSizeVal");
-const stampRot = document.getElementById("stampRot");
-const stampRotVal = document.getElementById("stampRotVal");
-const shieldWidthIn  = document.getElementById("shieldWidthIn");
-const shieldHeightIn = document.getElementById("shieldHeightIn");
-const shieldCurveIn  = document.getElementById("shieldCurveIn");
-const gridToggle     = document.getElementById("gridToggle");
-const ppiReadout     = document.getElementById("ppiReadout");
-const clearStampBtn = document.getElementById("clearStampBtn");
-const stampListEl = document.getElementById("stampList");
+const colorPicker = ctx.dom.colorPicker;
+const brushSize = ctx.dom.brushSize;
+const brushSizeVal = ctx.dom.brushSizeVal;
+const brushOpacity = ctx.dom.brushOpacity;
+const brushOpacityVal = ctx.dom.brushOpacityVal;
+const modeSelect = ctx.dom.modeSelect;
+const symmetrySelect = ctx.dom.symmetrySelect;
+const guidesToggle = ctx.dom.guidesToggle;
+const fillTolerance = ctx.dom.fillTolerance;
+const fillToleranceVal = ctx.dom.fillToleranceVal;
+const stampSize = ctx.dom.stampSize;
+const stampSizeVal = ctx.dom.stampSizeVal;
+const stampRot = ctx.dom.stampRot;
+const stampRotVal = ctx.dom.stampRotVal;
+const shieldWidthIn  = ctx.dom.shieldWidthIn;
+const shieldHeightIn = ctx.dom.shieldHeightIn;
+const shieldCurveIn = ctx.dom.shieldCurveIn;
+const gridToggle = ctx.dom.gridToggle;
+const ppiReadout = ctx.dom.ppiReadout;
+const clearStampBtn = ctx.dom.clearStampBtn;
+const stampListEl = ctx.dom.stampListEl;
 
 // Toolbar buttons
-const drawBtn = document.getElementById("drawBtn");
-const eraseBtn = document.getElementById("eraseBtn");
-const fillBtn = document.getElementById("fillBtn");
-const unfillBtn = document.getElementById("unfillBtn");
-const stampBtn = document.getElementById("stampBtn");
-const undoBtn = document.getElementById("undoBtn");
-const redoBtn = document.getElementById("redoBtn");
-const exportBtn = document.getElementById("exportBtn");
+const drawBtn = ctx.dom.drawBtn;
+const eraseBtn = ctx.dom.eraseBtn;
+const fillBtn = ctx.dom.fillBtn;
+const unfillBtn = ctx.dom.unfillBtn;
+const stampBtn = ctx.dom.stampBtn;
+const undoBtn = ctx.dom.undoBtn;
+const redoBtn = ctx.dom.redoBtn;
+const exportBtn = ctx.dom.exportBtn;
 
 // Library
-const newDesignBtn = document.getElementById("newDesignBtn");
+const newDesignBtn = ctx.dom.newDesignBtn;
 //const delDesignBtn = document.getElementById("delDesignBtn");
-const designListEl = document.getElementById("designList");
+const designListEl = ctx.dom.designListEl;
 
 // Layers UI
-const addLayerBtn = document.getElementById("addLayerBtn");
-const deleteLayerBtn = document.getElementById("deleteLayerBtn");
-const layersListEl = document.getElementById("layersList");
+const addLayerBtn = ctx.dom.addLayerBtn;
+const deleteLayerBtn = ctx.dom.deleteLayerBtn;
+const layersListEl = ctx.dom.layersListEl;
 
 // Sidebar controls
-const minLeftBtn = document.getElementById("minLeftBtn");
-const minRightBtn = document.getElementById("minRightBtn");
-const restoreLeftBtn = document.getElementById("restoreLeftBtn");
-const restoreRightBtn = document.getElementById("restoreRightBtn");
+const minLeftBtn = ctx.dom.minLeftBtn;
+const minRightBtn = ctx.dom.minRightBtn;
+const restoreLeftBtn = ctx.dom.restoreLeftBtn;
+const restoreRightBtn = ctx.dom.restoreRightBtn;
 
 // Toolbar drag
-const toolbar = document.getElementById("toolbar");
-const toolbarHandle = document.getElementById("toolbarHandle");
+const toolbar = ctx.dom.toolbar;
+const toolbarHandle = ctx.dom.toolbarHandle;
 
 // Collapsible panels
 document.querySelectorAll(".panel.collapsible .panel-head").forEach(btn => {
@@ -99,24 +104,35 @@ document.querySelectorAll(".panel.collapsible .panel-head").forEach(btn => {
 
 
 
-// UI readouts
-brushSizeVal.textContent = brushSize.value;
-brushOpacityVal.textContent = Number(brushOpacity.value).toFixed(2);
-fillToleranceVal.textContent = fillTolerance.value;
+// UI readouts (safe init)
+if (brushSizeVal && brushSize) {
+  brushSizeVal.textContent = brushSize.value;
+}
+if (brushOpacityVal && brushOpacity) {
+  brushOpacityVal.textContent = Number(brushOpacity.value).toFixed(2);
+}
+if (fillToleranceVal && fillTolerance) {
+  fillToleranceVal.textContent = fillTolerance.value;
+}
+
 // Stamp size standard init (keeps all stamps spawning reasonably sized)
 if (stampSize && (!stampSize.value || Number(stampSize.value) <= 0)) {
   stampSize.value = DEFAULT_STAMP_SIZE;
 }
-stampSizeVal.textContent = stampSize?.value || DEFAULT_STAMP_SIZE;
+if (stampSizeVal) {
+  stampSizeVal.textContent = (stampSize?.value || DEFAULT_STAMP_SIZE);
+}
 
-stampRotVal.textContent = `${stampRot.value}°`;
+if (stampRotVal && stampRot) {
+  stampRotVal.textContent = `${stampRot.value}°`;
+}
 
 
-brushSize.addEventListener("input", () => brushSizeVal.textContent = brushSize.value);
-brushOpacity.addEventListener("input", () => brushOpacityVal.textContent = Number(brushOpacity.value).toFixed(2));
-fillTolerance.addEventListener("input", () => fillToleranceVal.textContent = fillTolerance.value);
-stampSize.addEventListener("input", () => stampSizeVal.textContent = stampSize.value);
-stampRot.addEventListener("input", () => stampRotVal.textContent = `${stampRot.value}°`);
+brushSize?.addEventListener("input", () => { if (brushSizeVal) brushSizeVal.textContent = brushSize.value; });
+brushOpacity?.addEventListener("input", () => { if (brushOpacityVal) brushOpacityVal.textContent = Number(brushOpacity.value).toFixed(2); });
+fillTolerance?.addEventListener("input", () => { if (fillToleranceVal) fillToleranceVal.textContent = fillTolerance.value; });
+stampSize?.addEventListener("input", () => { if (stampSizeVal) stampSizeVal.textContent = stampSize.value; });
+stampRot?.addEventListener("input", () => { if (stampRotVal) stampRotVal.textContent = `${stampRot.value}°`; });
 
 function escapeHtml(s){
   return (s ?? "").replace(/[&<>"']/g, c => ({
@@ -127,60 +143,23 @@ function escapeHtml(s){
 // ============================================================
 // UI State (sidebars + toolbar position + scale)
 // ============================================================
-const uiState = loadUIState();
-applyUIState();
+const uiState = loadUIState(UI_KEY);
 
-minLeftBtn?.addEventListener("click", () => { uiState.hideLeft = true;  saveUIState(); applyUIState(); });
-minRightBtn?.addEventListener("click", () => { uiState.hideRight = true; saveUIState(); applyUIState(); });
-restoreLeftBtn?.addEventListener("click", () => { uiState.hideLeft = false;  saveUIState(); applyUIState(); });
-restoreRightBtn?.addEventListener("click", () => { uiState.hideRight = false; saveUIState(); applyUIState(); });
-
-function loadUIState(){
-  try{
-    const raw = localStorage.getItem(UI_KEY);
-    return raw ? JSON.parse(raw) : {
-      hideLeft:false,
-      hideRight:false,
-      toolbarPos:null,
-      scale: { widthIn: 31, heightIn: 40, curveIn: 8, showGrid: false }
-    };
-  } catch {
-    return {
-      hideLeft:false,
-      hideRight:false,
-      toolbarPos:null,
-      scale: { widthIn: 31, heightIn: 40, curveIn: 8, showGrid: false }
-    };
-  }
-}
-function saveUIState(){ localStorage.setItem(UI_KEY, JSON.stringify(uiState)); }
-
+// keep existing function names so the rest of app.js doesn't care
+function saveUIState(){ saveUIStateMod(UI_KEY, uiState); }
 function applyUIState(){
-  if (appRoot){
-    appRoot.classList.toggle("hide-left",  !!uiState.hideLeft);
-    appRoot.classList.toggle("hide-right", !!uiState.hideRight);
-  }
-
-  // restore toolbar position if saved
-  if (uiState.toolbarPos && toolbar) {
-    toolbar.style.left = uiState.toolbarPos.left + "px";
-    toolbar.style.top  = uiState.toolbarPos.top  + "px";
-    toolbar.style.bottom = "auto";
-    toolbar.style.transform = "translateX(0)";
-  }
-
-  if (!uiState.scale) uiState.scale = { widthIn:31, heightIn:40, curveIn:8, showGrid:false };
-
-  if (shieldWidthIn)  shieldWidthIn.value  = uiState.scale.widthIn;
-  if (shieldHeightIn) shieldHeightIn.value = uiState.scale.heightIn;
-  if (shieldCurveIn)  shieldCurveIn.value  = uiState.scale.curveIn;
-  if (gridToggle)     gridToggle.checked   = !!uiState.scale.showGrid;
-
-  updatePpiReadout();
-  drawGuides();
+  applyUIStateMod({
+    appRoot,
+    toolbar,
+    uiState,
+    inputs: { shieldWidthIn, shieldHeightIn, shieldCurveIn, gridToggle },
+    onAfterApply: () => { updatePpiReadout(); if (shieldPath) drawGuides(); }
+  });
 }
+
 
 // ============================================================
+
 // Draggable toolbar
 // ============================================================
 let draggingToolbar = false;
@@ -287,77 +266,28 @@ function updatePpiReadout(){
 // ============================================================
 // Shield mask
 // ============================================================
-function shieldPath(c) {
-  const w = displayCanvas.width;
-  const h = displayCanvas.height;
+const shield = createShieldMask(displayCanvas);
 
-  const left = w * 0.18;
-  const right = w * 0.82;
-  const top = h * 0.03;
-  const bottom = h * 0.97;
+// keep existing function names used throughout app.js
+const shieldPath = shield.shieldPath;
+const buildShieldMask = shield.buildShieldMask;
+const isInsideShield = shield.isInsideShield;
+const isOnShieldBoundary = shield.isOnShieldBoundary;
+const clipToShield = shield.clipToShield;
+const unclip = shield.unclip;
 
-  const rx = w * 0.13;
-  const ry = h * 0.09;
 
-  c.beginPath();
-  c.moveTo(left + rx, top);
-  c.lineTo(right - rx, top);
-  c.quadraticCurveTo(right, top, right, top + ry);
-  c.lineTo(right, bottom - ry);
-  c.quadraticCurveTo(right, bottom, right - rx, bottom);
-  c.lineTo(left + rx, bottom);
-  c.quadraticCurveTo(left, bottom, left, bottom - ry);
-  c.lineTo(left, top + ry);
-  c.quadraticCurveTo(left, top, left + rx, top);
-  c.closePath();
-}
 
-let shieldMask = null;
-let shieldBoundary = null;
-
-function buildShieldMask() {
-  const w = displayCanvas.width, h = displayCanvas.height;
-  const off = document.createElement("canvas");
-  off.width = w; off.height = h;
-  const octx = off.getContext("2d", { willReadFrequently: true });
-
-  octx.clearRect(0,0,w,h);
-  octx.fillStyle = "rgba(255,255,255,1)";
-  shieldPath(octx);
-  octx.fill();
-
-  const img = octx.getImageData(0,0,w,h).data;
-  const m = new Uint8Array(w*h);
-  for (let i=0;i<w*h;i++){
-    m[i] = img[i*4+3] > 0 ? 1 : 0;
-  }
-  shieldMask = m;
-
-  const b = new Uint8Array(w*h);
-  for (let y=1;y<h-1;y++){
-    for (let x=1;x<w-1;x++){
-      const p = y*w + x;
-      if (!m[p]) continue;
-      if (!m[p-1] || !m[p+1] || !m[p-w] || !m[p+w]) b[p] = 1;
-    }
-  }
-  shieldBoundary = b;
-}
-
-function isInsideShield(x,y){
-  const w = displayCanvas.width, h = displayCanvas.height;
-  if (x<0||y<0||x>=w||y>=h) return false;
-  return shieldMask?.[y*w + x] === 1;
-}
-function isOnShieldBoundary(x,y){
-  const w = displayCanvas.width;
-  return shieldBoundary?.[y*w + x] === 1;
-}
-
-function clipToShield(c){ c.save(); shieldPath(c); c.clip(); }
-function unclip(c){ c.restore(); }
-
+applyUIState();
+requestRender();
+wireSidebarButtons({
+  storageKey: UI_KEY,
+  uiState,
+  buttons: { minLeftBtn, minRightBtn, restoreLeftBtn, restoreRightBtn },
+  apply: applyUIState,
+});
 // ============================================================
+
 // Guides
 // ============================================================
 function drawGuides() {
@@ -425,36 +355,12 @@ guidesToggle?.addEventListener("change", drawGuides);
 // Symmetry helpers
 // ============================================================
 function getSymmetryPoints(p) {
-  const w = displayCanvas.width, h = displayCanvas.height;
-  const cx = w/2, cy = h/2;
   const mode = symmetrySelect?.value || "none";
-
-  const base = { x:p.x, y:p.y };
-  const mx = { x:(2*cx - p.x), y:p.y };
-  const my = { x:p.x, y:(2*cy - p.y) };
-  const mxy= { x:(2*cx - p.x), y:(2*cy - p.y) };
-
-  if (mode === "none") return [base];
-  if (mode === "mirrorX") return [base, mx];
-  if (mode === "mirrorY") return [base, my];
-  if (mode === "mirrorXY") return [base, mx, my, mxy];
-
-  const steps = mode === "radial8" ? 8 : 4;
-  const angStep = (Math.PI * 2) / steps;
-  const dx = p.x - cx;
-  const dy = p.y - cy;
-
-  const pts = [];
-  for (let i=0;i<steps;i++){
-    const a = angStep * i;
-    const rx = dx*Math.cos(a) - dy*Math.sin(a);
-    const ry = dx*Math.sin(a) + dy*Math.cos(a);
-    pts.push({ x: cx + rx, y: cy + ry });
-  }
-  return pts;
+  return getSymmetryPointsPure(p, { w: displayCanvas.width, h: displayCanvas.height }, mode);
 }
 
 // ============================================================
+
 // Layers system
 // ============================================================
 let layers = [];
@@ -1131,9 +1037,7 @@ function stampPointerMove(p){
     obj.sx = stampStart.sx0 * s;
     obj.sy = stampStart.sy0 * s;
   }
-displayCanvas.addEventListener("pointerdown", (e) => {
-  const { x, y } = getPointerPos(e);
-
+/*
   // 1) If we're in stamp mode, check selected-stamp tools FIRST
   const toolHit = hitTestSelectedStampTools(x, y);
   if (toolHit) {
@@ -1168,7 +1072,7 @@ displayCanvas.addEventListener("pointerdown", (e) => {
     }
   }
 });
-
+*/
   requestRender();
 }
 
