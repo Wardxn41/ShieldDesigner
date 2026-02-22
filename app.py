@@ -8,8 +8,9 @@ import requests
 from flask import Flask, render_template, Response, request, jsonify, g
 from dotenv import load_dotenv
 
-
-## login page imports
+# ============================================================
+# LOGIN IMPORTS (kept, but login is disabled below)
+# ============================================================
 from functools import wraps
 from flask import session, redirect, url_for, flash
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -18,11 +19,11 @@ import secrets
 
 load_dotenv()
 app = Flask(__name__)
-print("Login configured:", bool(os.getenv("ADMIN_USER")) and bool(os.getenv("ADMIN_PASS_HASH")))
 
-
-from werkzeug.security import generate_password_hash
-print(generate_password_hash("PerseusAndromeda"))
+# --- LOGIN DISABLED (optional prints) ---
+# print("Login configured:", bool(os.getenv("ADMIN_USER")) and bool(os.getenv("ADMIN_PASS_HASH")))
+# from werkzeug.security import generate_password_hash
+# print(generate_password_hash("PerseusAndromeda"))
 
 # IMPORTANT: set this in .env as a long random string
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "") or secrets.token_hex(32)
@@ -247,62 +248,64 @@ def storage_delete_object(bucket: str, object_path: str):
     raise RuntimeError(f"Supabase Storage DELETE failed: {r.status_code} {r.text}")
 
 
-# -------- Auth + CSRF (simple, strong baseline) --------
+# ============================================================
+# -------- Auth + CSRF (DISABLED FOR NOW) --------
+# ============================================================
 
-# In-memory rate-limit (per IP)
-_login_attempts = {}  # ip -> {"count": int, "reset_at": float}
-
-def _client_ip():
-    # If you add a reverse proxy later, handle X-Forwarded-For carefully.
-    return request.remote_addr or "unknown"
-
-def _rate_limit_login(max_attempts=8, window_seconds=300):
-    ip = _client_ip()
-    now = time.time()
-    rec = _login_attempts.get(ip)
-
-    if not rec or now > rec["reset_at"]:
-        _login_attempts[ip] = {"count": 0, "reset_at": now + window_seconds}
-        rec = _login_attempts[ip]
-
-    if rec["count"] >= max_attempts:
-        return False, int(rec["reset_at"] - now)
-    return True, 0
-
-def _record_failed_login():
-    ip = _client_ip()
-    rec = _login_attempts.get(ip)
-    if not rec:
-        _login_attempts[ip] = {"count": 1, "reset_at": time.time() + 300}
-    else:
-        rec["count"] += 1
-
-def _get_csrf():
-    token = session.get("csrf_token")
-    if not token:
-        token = secrets.token_urlsafe(32)
-        session["csrf_token"] = token
-    return token
-
-def _check_csrf(form_token: str) -> bool:
-    return bool(form_token) and secrets.compare_digest(form_token, session.get("csrf_token", ""))
-
-def is_logged_in() -> bool:
-    return session.get("auth", False) is True
-
-def login_required(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        if not is_logged_in():
-            return redirect(url_for("login", next=request.path))
-        return fn(*args, **kwargs)
-    return wrapper
-
+# # In-memory rate-limit (per IP)
+# _login_attempts = {}  # ip -> {"count": int, "reset_at": float}
+#
+# def _client_ip():
+#     # If you add a reverse proxy later, handle X-Forwarded-For carefully.
+#     return request.remote_addr or "unknown"
+#
+# def _rate_limit_login(max_attempts=8, window_seconds=300):
+#     ip = _client_ip()
+#     now = time.time()
+#     rec = _login_attempts.get(ip)
+#
+#     if not rec or now > rec["reset_at"]:
+#         _login_attempts[ip] = {"count": 0, "reset_at": now + window_seconds}
+#         rec = _login_attempts[ip]
+#
+#     if rec["count"] >= max_attempts:
+#         return False, int(rec["reset_at"] - now)
+#     return True, 0
+#
+# def _record_failed_login():
+#     ip = _client_ip()
+#     rec = _login_attempts.get(ip)
+#     if not rec:
+#         _login_attempts[ip] = {"count": 1, "reset_at": time.time() + 300}
+#     else:
+#         rec["count"] += 1
+#
+# def _get_csrf():
+#     token = session.get("csrf_token")
+#     if not token:
+#         token = secrets.token_urlsafe(32)
+#         session["csrf_token"] = token
+#     return token
+#
+# def _check_csrf(form_token: str) -> bool:
+#     return bool(form_token) and secrets.compare_digest(form_token, session.get("csrf_token", ""))
+#
+# def is_logged_in() -> bool:
+#     return session.get("auth", False) is True
+#
+# def login_required(fn):
+#     @wraps(fn)
+#     def wrapper(*args, **kwargs):
+#         if not is_logged_in():
+#             return redirect(url_for("login", next=request.path))
+#         return fn(*args, **kwargs)
+#     return wrapper
 
 
 @app.get("/favicon.ico")
 def favicon():
     return ("", 204)
+
 # ============================================================
 # Pages
 # ============================================================
@@ -401,8 +404,6 @@ def api_load_design(design_id):
         }
     )
 
-
-
 @app.patch("/api/designs/<design_id>")
 def api_rename_design(design_id):
     """Rename a design.
@@ -427,62 +428,64 @@ def api_rename_design(design_id):
     dt = datetime.fromisoformat(now.replace("Z", "+00:00"))
     return jsonify({"id": design_id, "name": name, "updated": int(dt.timestamp() * 1000)})
 
-
-@app.get("/login")
-def login():
-    if is_logged_in():
-        return redirect(url_for("home"))
-    return render_template("login.html", csrf_token=_get_csrf(), next=request.args.get("next", "/"))
-
-@app.post("/login")
-def login_post():
-    ok, wait_s = _rate_limit_login()
-    if not ok:
-        return render_template(
-            "login.html",
-            csrf_token=_get_csrf(),
-            next=request.form.get("next", "/"),
-            error=f"Too many attempts. Try again in {wait_s}s."
-        ), 429
-
-    if not _check_csrf(request.form.get("csrf_token", "")):
-        return "CSRF failed", 400
-
-    username = (request.form.get("username") or "").strip()
-    password = request.form.get("password") or ""
-
-    admin_user = (os.getenv("ADMIN_USER") or "").strip()
-    admin_hash = (os.getenv("ADMIN_PASS_HASH") or "").strip()
-
-    if not admin_user or not admin_hash:
-        return "Server not configured for login. Set ADMIN_USER and ADMIN_PASS_HASH.", 500
-
-    if username == admin_user and check_password_hash(admin_hash, password):
-        session["auth"] = True
-        session["user"] = username
-        # rotate csrf on login
-        session["csrf_token"] = secrets.token_urlsafe(32)
-
-        nxt = request.form.get("next") or "/"
-        # prevent open redirects
-        if not nxt.startswith("/"):
-            nxt = "/"
-        return redirect(nxt)
-
-    _record_failed_login()
-    return render_template(
-        "login.html",
-        csrf_token=_get_csrf(),
-        next=request.form.get("next", "/"),
-        error="Invalid username or password."
-    ), 401
-
-@app.post("/logout")
-def logout():
-    if not _check_csrf(request.form.get("csrf_token", "")):
-        return "CSRF failed", 400
-    session.clear()
-    return redirect(url_for("login"))
+# ============================================================
+# LOGIN ROUTES (DISABLED FOR NOW)
+# ============================================================
+# @app.get("/login")
+# def login():
+#     if is_logged_in():
+#         return redirect(url_for("home"))
+#     return render_template("login.html", csrf_token=_get_csrf(), next=request.args.get("next", "/"))
+#
+# @app.post("/login")
+# def login_post():
+#     ok, wait_s = _rate_limit_login()
+#     if not ok:
+#         return render_template(
+#             "login.html",
+#             csrf_token=_get_csrf(),
+#             next=request.form.get("next", "/"),
+#             error=f"Too many attempts. Try again in {wait_s}s."
+#         ), 429
+#
+#     if not _check_csrf(request.form.get("csrf_token", "")):
+#         return "CSRF failed", 400
+#
+#     username = (request.form.get("username") or "").strip()
+#     password = request.form.get("password") or ""
+#
+#     admin_user = (os.getenv("ADMIN_USER") or "").strip()
+#     admin_hash = (os.getenv("ADMIN_PASS_HASH") or "").strip()
+#
+#     if not admin_user or not admin_hash:
+#         return "Server not configured for login. Set ADMIN_USER and ADMIN_PASS_HASH.", 500
+#
+#     if username == admin_user and check_password_hash(admin_hash, password):
+#         session["auth"] = True
+#         session["user"] = username
+#         # rotate csrf on login
+#         session["csrf_token"] = secrets.token_urlsafe(32)
+#
+#         nxt = request.form.get("next") or "/"
+#         # prevent open redirects
+#         if not nxt.startswith("/"):
+#             nxt = "/"
+#         return redirect(nxt)
+#
+#     _record_failed_login()
+#     return render_template(
+#         "login.html",
+#         csrf_token=_get_csrf(),
+#         next=request.form.get("next", "/"),
+#         error="Invalid username or password."
+#     ), 401
+#
+# @app.post("/logout")
+# def logout():
+#     if not _check_csrf(request.form.get("csrf_token", "")):
+#         return "CSRF failed", 400
+#     session.clear()
+#     return redirect(url_for("login"))
 
 @app.get("/api/designs/<design_id>/layers/<int:layer_index>.png")
 def api_layer_png(design_id, layer_index: int):
@@ -655,4 +658,5 @@ if __name__ == "__main__":
     #   python app.py
     # (waitress is embedded below)
     from waitress import serve
-    serve(app, host="127.0.0.1", port=8080)
+    # serve(app, host="127.0.0.1", port=8080)
+    serve(app, host="0.0.0.0", port=8080)
