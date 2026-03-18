@@ -1,5 +1,5 @@
 // Static/app/core/saveManager.js
-// Owns: save debouncing / coalescing + designs list refresh throttling.
+// FIX: cancel() method prevents stale canvas data being written to a newly-switched design.
 
 export function createSaveManager({
   getActiveDesignId,
@@ -18,7 +18,6 @@ export function createSaveManager({
 
   async function runSaveOnce() {
     if (saveInFlight) return;
-
     const id = getActiveDesignId();
     if (!id) return;
 
@@ -59,5 +58,16 @@ export function createSaveManager({
     }, debounceMs);
   }
 
-  return { saveDebounced, runSaveOnce };
+  // Cancel any queued (but not yet fired) save.
+  // Call BEFORE switching activeDesignId to prevent old canvas data
+  // being written into the incoming design.
+  function cancel() {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    pendingSave = false;
+  }
+
+  return { saveDebounced, runSaveOnce, cancel };
 }

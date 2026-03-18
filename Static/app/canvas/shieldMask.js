@@ -1,35 +1,26 @@
-// Shield mask + boundary detection
-// Encapsulates:
-// - Path definition for the current shield shape
-// - Binary mask (inside / outside)
-// - Boundary pixels for outlines + guide drawing
+// app/canvas/shieldMask.js
+// UPGRADED: accepts a shape definition from shapeRegistry.
+// The shape can be swapped at runtime — just call setShape(newShape) + buildShieldMask().
+
+import { getShape } from "./shapeRegistry.js";
+
 export function createShieldMask(displayCanvas) {
-  let shieldMask = null;
+  let shieldMask     = null;
   let shieldBoundary = null;
+  let _shape = getShape("scutum"); // default
 
-  function shieldPath(c) {
-    const w = displayCanvas.width;
-    const h = displayCanvas.height;
+  function setShape(shapeOrId) {
+    if (typeof shapeOrId === "string") {
+      _shape = getShape(shapeOrId);
+    } else {
+      _shape = shapeOrId;
+    }
+  }
 
-    const left = w * 0.18;
-    const right = w * 0.82;
-    const top = h * 0.03;
-    const bottom = h * 0.97;
+  function getActiveShape() { return _shape; }
 
-    const rx = w * 0.13;
-    const ry = h * 0.09;
-
-    c.beginPath();
-    c.moveTo(left + rx, top);
-    c.lineTo(right - rx, top);
-    c.quadraticCurveTo(right, top, right, top + ry);
-    c.lineTo(right, bottom - ry);
-    c.quadraticCurveTo(right, bottom, right - rx, bottom);
-    c.lineTo(left + rx, bottom);
-    c.quadraticCurveTo(left, bottom, left, bottom - ry);
-    c.lineTo(left, top + ry);
-    c.quadraticCurveTo(left, top, left + rx, top);
-    c.closePath();
+  function shieldPath(ctx) {
+    _shape.path(ctx, displayCanvas.width, displayCanvas.height);
   }
 
   function buildShieldMask() {
@@ -37,7 +28,6 @@ export function createShieldMask(displayCanvas) {
     const off = document.createElement("canvas");
     off.width = w; off.height = h;
     const octx = off.getContext("2d", { willReadFrequently: true });
-
     octx.clearRect(0, 0, w, h);
     octx.fillStyle = "rgba(255,255,255,1)";
     shieldPath(octx);
@@ -45,9 +35,7 @@ export function createShieldMask(displayCanvas) {
 
     const img = octx.getImageData(0, 0, w, h).data;
     const m = new Uint8Array(w * h);
-    for (let i = 0; i < w * h; i++) {
-      m[i] = img[i * 4 + 3] > 0 ? 1 : 0;
-    }
+    for (let i = 0; i < w * h; i++) m[i] = img[i * 4 + 3] > 0 ? 1 : 0;
     shieldMask = m;
 
     const b = new Uint8Array(w * h);
@@ -68,8 +56,7 @@ export function createShieldMask(displayCanvas) {
   }
 
   function isOnShieldBoundary(x, y) {
-    const w = displayCanvas.width;
-    return shieldBoundary?.[y * w + x] === 1;
+    return shieldBoundary?.[y * displayCanvas.width + x] === 1;
   }
 
   function clipToShield(c) { c.save(); shieldPath(c); c.clip(); }
@@ -82,7 +69,8 @@ export function createShieldMask(displayCanvas) {
     isOnShieldBoundary,
     clipToShield,
     unclip,
-    // exposing for debugging (optional)
+    setShape,
+    getActiveShape,
     get mask() { return shieldMask; },
     get boundary() { return shieldBoundary; },
   };

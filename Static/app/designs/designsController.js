@@ -1,5 +1,5 @@
 // Static/app/designs/designsController.js
-// Owns: design list state + list rendering + create/rename/delete/select.
+// FIX: cancelSave called before switching activeDesignId to prevent race condition.
 
 import { loadDesignIntoCanvas } from "./loadIntoCanvas.js";
 
@@ -27,8 +27,9 @@ export function createDesignsController({
   setActiveDesignId,
   setStampObjects,
   clearSelectedStamp,
-  storage, // { listDesigns, createDesign, loadDesign, deleteDesign, renameDesign }
+  storage,
   saveDebounced,
+  cancelSave,        // () => void — cancels any queued save before switching designs
 }) {
   let designs = [];
 
@@ -43,8 +44,13 @@ export function createDesignsController({
       .forEach((d) => {
         const el = document.createElement("div");
         el.className = "design-card" + (d.id === activeId ? " active" : "");
+        el.dataset.designId = d.id;
+
+        // Restore thumbnail from sessionStorage if available
+        const thumbUrl = (() => { try { return sessionStorage.getItem(`thumb_${d.id}`); } catch { return null; } })();
 
         el.innerHTML = `
+          ${thumbUrl ? `<div class="design-thumb" style="background-image:url(${thumbUrl})"></div>` : `<div class="design-thumb design-thumb--empty"></div>`}
           <div class="design-title-row">
             <div class="design-title" data-role="designTitle">${escapeHtml(d.name)}</div>
             <div class="design-actions">
@@ -57,8 +63,13 @@ export function createDesignsController({
 
         el.addEventListener("click", async () => {
           if (getActiveDesignId() === d.id) return;
+
+          // FIX: cancel pending save BEFORE switching ID
+          cancelSave?.();
+
           setActiveDesignId(d.id);
           render();
+
           await loadDesignIntoCanvas(d.id, {
             storage: { loadDesign: storage.loadDesign },
             layersSys,
@@ -94,8 +105,8 @@ export function createDesignsController({
             await storage.deleteDesign(d.id);
             if (getActiveDesignId() === d.id) setActiveDesignId(null);
             await refresh();
-
             if (designs[0]) {
+              cancelSave?.(); // FIX: also cancel before auto-loading next design after delete
               setActiveDesignId(designs[0].id);
               await loadDesignIntoCanvas(designs[0].id, {
                 storage: { loadDesign: storage.loadDesign },
@@ -143,7 +154,6 @@ export function createDesignsController({
     if (!name) return;
     const created = await storage.createDesign(name);
     setActiveDesignId(created.id);
-
     layersSys.initDefaultLayers();
     layersSys.warmBaseFill();
     layersSys.markAllLayersDirty();
@@ -152,7 +162,6 @@ export function createDesignsController({
     requestRender();
     resetHistory?.();
     touchUpdated(created.id);
-
     await saveDebounced?.();
     await refresh();
   }
