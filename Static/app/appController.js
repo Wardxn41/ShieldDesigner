@@ -1,13 +1,5 @@
 // ============================================================
-// Shield Designer — appController.js  v5
-// Changes from v4:
-//   - Stamp controls now live inside the Stamps tab (always in DOM)
-//     instead of a floating panel; show/hide handled by setMode()
-//   - stampControlsPanel visibility tied to mode === "stamp"
-//   - Font system is pure CSS/HTML — no JS changes needed here
-//   - Background selector bug fixed in backgroundSystem.js
-//   - cancelSave() race condition fix preserved
-//   - All previous upgrades preserved
+// Shield Designer — appController.js
 // ============================================================
 
 import { listDesigns, createDesign, saveDesign, loadDesign, deleteDesign, renameDesign } from "../Storage/repo.js";
@@ -163,10 +155,10 @@ function clampNum(v, min, max, fallback) {
 
 function updateScaleFromUI() {
   if (!uiState.scale) uiState.scale = { widthIn: 31, heightIn: 40, curveIn: 8, showGrid: false };
-  if (shieldWidthIn) uiState.scale.widthIn  = clampNum(shieldWidthIn.value, 10, 80, 31);
+  if (shieldWidthIn)  uiState.scale.widthIn  = clampNum(shieldWidthIn.value, 10, 80, 31);
   if (shieldHeightIn) uiState.scale.heightIn = clampNum(shieldHeightIn.value, 10, 100, 40);
-  if (shieldCurveIn) uiState.scale.curveIn  = clampNum(shieldCurveIn.value, 0, 24, 8);
-  if (gridToggle) uiState.scale.showGrid = !!gridToggle.checked;
+  if (shieldCurveIn)  uiState.scale.curveIn  = clampNum(shieldCurveIn.value, 0, 24, 8);
+  if (gridToggle)     uiState.scale.showGrid = !!gridToggle.checked;
   saveUIState();
   updatePpiReadout();
   drawGuides();
@@ -181,7 +173,7 @@ function getPpi() {
   const pxW = displayCanvas.width, pxH = displayCanvas.height;
   return {
     ppiX: pxW / (uiState.scale?.widthIn  ?? 31),
-    ppiY: pxH / (uiState.scale?.heightIn ?? 40)
+    ppiY: pxH / (uiState.scale?.heightIn ?? 40),
   };
 }
 
@@ -216,9 +208,9 @@ function buildShapeSelector() {
     pctx.scale(44 / displayCanvas.width, 44 / displayCanvas.height);
     shape.path(pctx, displayCanvas.width, displayCanvas.height);
     pctx.restore();
-    pctx.fillStyle = "rgba(212,160,50,0.2)";
+    pctx.fillStyle = "rgba(212,155,60,0.2)";
     pctx.fill();
-    pctx.strokeStyle = "rgba(212,160,50,0.75)";
+    pctx.strokeStyle = "rgba(212,155,60,0.75)";
     pctx.lineWidth = 2.5;
     pctx.stroke();
 
@@ -267,6 +259,11 @@ const stamps = createStampSystem({
 stamps.renderStampList();
 initReadouts(ctx.dom);
 
+// ── Expose stamp import hooks for drag-drop in index.html ─────
+// These are called by the drag-drop script in index.html.
+window.__sdToast    = (msg, type) => showToast(msg, type ?? "info");
+window.__sdImportPng = (dataUrl, name) => stamps.addCustomStampFromDataUrl(dataUrl, name);
+
 // ── History ───────────────────────────────────────────────────
 const history = createHistoryManager({
   displayCanvas, layersSys, stamps, requestRender, saveActiveToDesignsDebounced,
@@ -303,7 +300,7 @@ function drawGuides() {
   gctx.clearRect(0, 0, guidesCanvas.width, guidesCanvas.height);
 
   gctx.lineWidth = 5;
-  gctx.strokeStyle = "rgba(212,160,50,0.3)";
+  gctx.strokeStyle = "rgba(212,155,60,0.3)";
   shieldPath(gctx); gctx.stroke();
 
   gctx.lineWidth = 1.5;
@@ -356,7 +353,7 @@ function parseHexColor(hex) {
     r: parseInt(hex.slice(1,3),16),
     g: parseInt(hex.slice(3,5),16),
     b: parseInt(hex.slice(5,7),16),
-    a: 255
+    a: 255,
   };
 }
 function colorDist(r1,g1,b1,a1,r2,g2,b2,a2) {
@@ -448,40 +445,19 @@ createInputController({
 });
 
 // ── setMode ───────────────────────────────────────────────────
-// When mode is "stamp", switch the right sidebar to the stamps tab
-// and show the stamp controls panel.
 function setMode(m) {
   if (modeSelect) modeSelect.value = m;
-
   [drawBtn, eraseBtn, fillBtn, unfillBtn, stampBtn].forEach(btn => {
     if (!btn) return;
     btn.classList.remove("selected", "tool-active-glow");
   });
-
   const activeBtn = {
     draw: drawBtn, erase: eraseBtn, fill: fillBtn, unfill: unfillBtn, stamp: stampBtn
   }[m];
   if (activeBtn) activeBtn.classList.add("selected", "tool-active-glow");
 
-  // Show/hide stamp controls inside stamps tab
   const stampPanel = document.getElementById("stampControlsPanel");
   if (stampPanel) stampPanel.style.display = m === "stamp" ? "" : "none";
-
-  // Auto-navigate to stamps tab when stamp mode activated
-  if (m === "stamp") {
-    const stampsTabBtn = document.querySelector('[data-tab="stamps"]');
-    if (stampsTabBtn && !stampsTabBtn.classList.contains("active")) {
-      stampsTabBtn.click();
-    }
-  }
-
-  // Auto-navigate to draw tab when draw/erase/fill mode activated
-  if (m === "draw" || m === "erase") {
-    const drawTabBtn = document.querySelector('[data-tab="draw"]');
-    if (drawTabBtn && !drawTabBtn.classList.contains("active")) {
-      drawTabBtn.click();
-    }
-  }
 
   requestRender();
 }
@@ -507,17 +483,14 @@ document.getElementById("stampOpacitySlider")?.addEventListener("input", (e) => 
   saveActiveToDesignsDebounced();
 });
 
-// ── Keyboard shortcuts + brush cursor ────────────────────────
+// ── Keyboard shortcuts + brush cursor ─────────────────────────
 initShortcutsOverlay();
 initBrushCursor({ displayCanvas, modeSelect, brushSize });
 
 window.addEventListener("keydown", (e) => {
   const el = document.activeElement;
-  const isTyping = el && (
-    el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable
-  );
+  const isTyping = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
   if (isTyping) return;
-
   switch (e.key.toLowerCase()) {
     case "d": setMode("draw"); break;
     case "e": setMode("erase"); break;
@@ -527,16 +500,10 @@ window.addEventListener("keydown", (e) => {
     case "z": e.preventDefault(); history.undo(); break;
     case "y": e.preventDefault(); history.redo(); break;
     case "[":
-      if (brushSize) {
-        brushSize.value = Math.max(1, +brushSize.value - 2);
-        brushSize.dispatchEvent(new Event("input"));
-      }
+      if (brushSize) { brushSize.value = Math.max(1, +brushSize.value - 2); brushSize.dispatchEvent(new Event("input")); }
       break;
     case "]":
-      if (brushSize) {
-        brushSize.value = Math.min(200, +brushSize.value + 2);
-        brushSize.dispatchEvent(new Event("input"));
-      }
+      if (brushSize) { brushSize.value = Math.min(200, +brushSize.value + 2); brushSize.dispatchEvent(new Event("input")); }
       break;
   }
 });
@@ -574,10 +541,8 @@ function compositeToDisplay() {
   const w = displayCanvas.width, h = displayCanvas.height;
   dctx.clearRect(0, 0, w, h);
 
-  // 1. Background (clipped to shield shape)
   renderBackground(dctx, w, h, activeBgDef, (c) => shieldPath(c));
 
-  // 2. Layers
   dctx.save();
   shieldPath(dctx); dctx.clip();
   for (const layer of layersSys.layers) {
@@ -586,12 +551,9 @@ function compositeToDisplay() {
     dctx.drawImage(layer.canvas, 0, 0);
   }
   dctx.globalAlpha = 1;
-
-  // 3. Stamps
   stamps.renderTo(dctx);
   dctx.restore();
 
-  // 4. Guides
   drawGuides();
 }
 
@@ -614,17 +576,16 @@ function refreshDesignListThrottled(ms = 1200) {
 
 const designsCtrl = createDesignsController({
   designListEl, newDesignBtn, layersSys, displayCanvas, requestRender, resetHistory,
-  getActiveDesignId: () => activeDesignId,
-  setActiveDesignId: (id) => { activeDesignId = id; },
-  setStampObjects:   (arr) => { stamps.setStampObjects(arr); },
+  getActiveDesignId:  () => activeDesignId,
+  setActiveDesignId:  (id) => { activeDesignId = id; },
+  setStampObjects:    (arr) => { stamps.setStampObjects(arr); },
   clearSelectedStamp: () => { stamps.clearSelection(); },
   storage: { listDesigns, createDesign, loadDesign, deleteDesign, renameDesign },
   saveDebounced: () => saveActiveToDesignsDebounced(),
-  cancelSave: () => saveMgr.cancel(),
+  cancelSave:    () => saveMgr.cancel(),
 });
 
 async function saveDesignWithExtras(designId, layers, stampObjects, opts) {
-  // Generate thumbnail
   try {
     const off = document.createElement("canvas");
     off.width = 128; off.height = 128;
@@ -642,7 +603,6 @@ async function saveDesignWithExtras(designId, layers, stampObjects, opts) {
     const cardThumb = document.querySelector(`[data-design-id="${designId}"] .design-thumb`);
     if (cardThumb) cardThumb.style.backgroundImage = `url(${thumb})`;
   } catch {}
-
   return saveDesign(designId, layers, stampObjects, opts);
 }
 
@@ -699,8 +659,8 @@ export async function boot() {
     await loadDesignIntoCanvas(activeDesignId, {
       storage: { loadDesign },
       layersSys,
-      setActiveDesignId: (id) => { activeDesignId = id; },
-      setStampObjects:   (arr) => { stamps.setStampObjects(arr); },
+      setActiveDesignId:  (id) => { activeDesignId = id; },
+      setStampObjects:    (arr) => { stamps.setStampObjects(arr); },
       clearSelectedStamp: () => { stamps.clearSelection(); },
       requestRender, resetHistory, displayCanvas,
     });

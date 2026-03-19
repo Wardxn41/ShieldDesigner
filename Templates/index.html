@@ -4,8 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Shield Designer</title>
-
-  <!-- DM Sans: precision UI workhorse. Cormorant: display moments only. DM Mono: numbers. -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet" />
@@ -14,9 +12,7 @@
 <body>
 <div class="app" id="appRoot">
 
-  <!-- ╔══════════════════════════════════════════════╗
-       ║  LEFT SIDEBAR — Shield Library               ║
-       ╚══════════════════════════════════════════════╝ -->
+  <!-- ═══ LEFT SIDEBAR — Shield Library ══════════════════════════ -->
   <aside class="sidebar left" id="leftSidebar">
     <div class="sidebar-header">
       <div class="brand">
@@ -25,11 +21,9 @@
       </div>
       <button id="newDesignBtn" type="button">+ New</button>
     </div>
-
     <div class="sidebar-content">
       <div id="designList" class="design-list" aria-label="Design list"></div>
     </div>
-
     <button class="sidebar-min-btn" id="minLeftBtn" type="button">
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
         <path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -38,9 +32,7 @@
     </button>
   </aside>
 
-  <!-- ╔══════════════════════════════════════════════╗
-       ║  CENTER — Canvas Stage                       ║
-       ╚══════════════════════════════════════════════╝ -->
+  <!-- ═══ CENTER — Canvas Stage ════════════════════════════════════ -->
   <main class="stage">
     <div class="shield-wrap">
       <div class="shield-frame">
@@ -50,58 +42,53 @@
     </div>
   </main>
 
-  <!-- ╔══════════════════════════════════════════════╗
-       ║  RIGHT SIDEBAR — Tools                       ║
-       ╚══════════════════════════════════════════════╝ -->
+  <!-- ═══ RIGHT SIDEBAR — Tools ════════════════════════════════════ -->
   <aside class="sidebar right" id="rightSidebar">
     <div class="sidebar-header">
       <div class="brand">
         Tools
         <span class="brand-sub">Properties</span>
       </div>
-      <button id="clearStampBtn" class="btn subtle" type="button" style="font-size:11px; height:28px; padding: 0 10px;">Clear</button>
+      <button id="clearStampBtn" class="btn subtle" type="button" style="font-size:11px;height:28px;padding:0 10px;">Clear</button>
     </div>
 
     <div class="sidebar-content">
 
-      <!-- ── Shield Shape ──────────────────────────────── -->
+      <!-- Shield Shape -->
       <div class="panel collapsible" id="shapePanel">
         <button class="panel-head" type="button">
-          <span>Shield Shape</span>
-          <span class="chev">▾</span>
+          <span>Shield Shape</span><span class="chev">▾</span>
         </button>
         <div class="panel-body">
           <div id="shapeSelector" class="shape-selector"></div>
         </div>
       </div>
 
-      <!-- ── Background ───────────────────────────────── -->
+      <!-- Background -->
       <div class="panel collapsible" id="backgroundPanel">
         <button class="panel-head" type="button">
-          <span>Background</span>
-          <span class="chev">▾</span>
+          <span>Background</span><span class="chev">▾</span>
         </button>
         <div class="panel-body">
           <div id="backgroundSelector"></div>
         </div>
       </div>
 
-      <!-- ── Color & Brush ────────────────────────────── -->
+      <!-- Color & Brush -->
       <div class="panel collapsible" id="colorPanel">
         <button class="panel-head" type="button">
-          <span>Color &amp; Brush</span>
-          <span class="chev">▾</span>
+          <span>Color &amp; Brush</span><span class="chev">▾</span>
         </button>
         <div class="panel-body">
-          <div class="row" style="padding: 6px 8px 10px; gap: 10px;">
+          <div class="row" style="padding:6px 8px 10px;gap:10px;">
             <input id="colorPicker" type="color" value="#d6a84b" />
-            <div style="flex:1; min-width:0;">
-              <div class="row" style="margin:0; padding:0;">
+            <div style="flex:1;min-width:0;">
+              <div class="row" style="margin:0;padding:0;">
                 <label class="label" for="brushSize">Brush</label>
                 <input id="brushSize" type="range" min="1" max="80" value="8" />
                 <span id="brushSizeVal" class="pill">8</span>
               </div>
-              <div class="row" style="margin-top:6px; padding:0;">
+              <div class="row" style="margin-top:6px;padding:0;">
                 <label class="label" for="brushOpacity">Opacity</label>
                 <input id="brushOpacity" type="range" min="0.05" max="1" step="0.05" value="1" />
                 <span id="brushOpacityVal" class="pill">1.00</span>
@@ -111,21 +98,20 @@
         </div>
       </div>
 
-      <!-- ── Layers ───────────────────────────────────── -->
+      <!-- Layers -->
       <div class="panel collapsible" id="layersPanel">
         <button class="panel-head" type="button">
-          <span>Layers</span>
-          <span class="chev">▾</span>
+          <span>Layers</span><span class="chev">▾</span>
         </button>
         <div class="panel-body">
-          <div style="display:flex; gap:6px; padding:0 4px 8px;">
-            <button id="addLayerBtn" class="btn" type="button" style="flex:1; font-size:11px; height:30px;">
+          <div style="display:flex;gap:6px;padding:0 4px 8px;">
+            <button id="addLayerBtn" class="btn" type="button" style="flex:1;font-size:11px;height:30px;">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <path d="M5 1v8M1 5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
               </svg>
               Add Layer
             </button>
-            <button id="deleteLayerBtn" class="btn subtle" type="button" style="font-size:11px; height:30px; padding:0 10px;">
+            <button id="deleteLayerBtn" class="btn subtle" type="button" style="font-size:11px;height:30px;padding:0 10px;">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <path d="M2 3h6M4 1h2M3.5 3v5.5M6.5 3v5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
               </svg>
@@ -136,7 +122,7 @@
         </div>
       </div>
 
-      <!-- ── Selected Stamp Controls ──────────────────── -->
+      <!-- Selected Stamp Controls -->
       <div id="stampControlsPanel" style="display:none;">
         <div style="padding:0 4px 4px;">
           <div class="stamp-selected-label">Selected Stamp</div>
@@ -145,33 +131,31 @@
             <input type="range" id="stampOpacitySlider" min="0" max="1" step="0.01" value="1" />
             <span class="pill" id="stampOpacityVal">1.00</span>
           </div>
-          <div style="display:flex; gap:6px; margin-top:6px;">
+          <div style="display:flex;gap:6px;margin-top:6px;">
             <button class="flip-btn" id="stampFlipHBtn" type="button">↔ Flip H</button>
             <button class="flip-btn" id="stampFlipVBtn" type="button">↕ Flip V</button>
           </div>
         </div>
       </div>
 
-      <!-- ── Stamps & Patterns ─────────────────────────── -->
+      <!-- Stamps & Patterns -->
       <div class="panel collapsible" id="patternsPanel">
         <button class="panel-head" type="button">
-          <span>Stamps &amp; Patterns</span>
-          <span class="chev">▾</span>
+          <span>Stamps &amp; Patterns</span><span class="chev">▾</span>
         </button>
         <div class="panel-body">
           <div id="stampList" class="stamp-list" aria-label="Stamps"></div>
         </div>
       </div>
 
-      <!-- ── Settings (collapsed by default) ──────────── -->
+      <!-- Settings (collapsed by default) -->
       <div class="panel collapsible collapsed" id="settingsPanel">
         <button class="panel-head" type="button">
-          <span>Advanced</span>
-          <span class="chev">▾</span>
+          <span>Advanced</span><span class="chev">▾</span>
         </button>
         <div class="panel-body">
 
-          <div class="section-label">Symmetry</div>
+          <div class="subhead">Symmetry</div>
           <div class="row">
             <label class="label" for="symmetrySelect">Mode</label>
             <select id="symmetrySelect">
@@ -184,7 +168,7 @@
             </select>
           </div>
 
-          <!-- Hidden mode select — kept for appController compatibility -->
+          <!-- Hidden — kept for appController compatibility -->
           <select id="modeSelect" style="display:none">
             <option value="draw">Draw</option>
             <option value="erase">Erase</option>
@@ -193,8 +177,8 @@
             <option value="stamp">Stamp</option>
           </select>
 
-          <div class="divider"></div>
-          <div class="section-label">Stamp Defaults</div>
+          <hr class="divider" />
+          <div class="subhead">Stamp Defaults</div>
           <div class="row">
             <label class="label" for="stampSize">Size</label>
             <input id="stampSize" type="range" min="40" max="420" value="180" />
@@ -206,16 +190,16 @@
             <span id="stampRotVal" class="pill">0°</span>
           </div>
 
-          <div class="divider"></div>
-          <div class="section-label">Fill</div>
+          <hr class="divider" />
+          <div class="subhead">Fill</div>
           <div class="row">
             <label class="label" for="fillTolerance">Tolerance</label>
             <input id="fillTolerance" type="range" min="0" max="80" value="25" />
             <span id="fillToleranceVal" class="pill">25</span>
           </div>
 
-          <div class="divider"></div>
-          <div class="section-label">Display</div>
+          <hr class="divider" />
+          <div class="subhead">Display</div>
           <div class="row">
             <label class="label" for="guidesToggle">Show guides</label>
             <input id="guidesToggle" type="checkbox" checked />
@@ -225,8 +209,8 @@
             <input id="gridToggle" type="checkbox" />
           </div>
 
-          <div class="divider"></div>
-          <div class="section-label">Real-World Scale</div>
+          <hr class="divider" />
+          <div class="subhead">Real-World Scale</div>
           <div class="row">
             <label class="label" for="shieldWidthIn">Width (in)</label>
             <input id="shieldWidthIn" type="number" min="10" max="80" step="0.25" value="31" />
@@ -236,7 +220,7 @@
             <input id="shieldHeightIn" type="number" min="10" max="100" step="0.25" value="40" />
           </div>
           <div class="row">
-            <label class="label" for="shieldCurveIn">Curve depth (in)</label>
+            <label class="label" for="shieldCurveIn">Curve (in)</label>
             <input id="shieldCurveIn" type="number" min="0" max="24" step="0.25" value="8" />
           </div>
           <div class="row">
@@ -268,24 +252,17 @@
     </svg>
   </button>
 
-  <!-- ╔══════════════════════════════════════════════╗
-       ║  FLOATING TOOLBAR                            ║
-       ╚══════════════════════════════════════════════╝ -->
+  <!-- ═══ FLOATING TOOLBAR ══════════════════════════════════════════ -->
   <div class="toolbar" id="toolbar" role="toolbar" aria-label="Drawing tools">
 
-    <!-- Drag handle -->
     <div class="toolbar-drag-handle" id="toolbarHandle" title="Drag · double-click to reset" aria-hidden="true">
       <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
-        <circle cx="2" cy="2"  r="1.2"/>
-        <circle cx="6" cy="2"  r="1.2"/>
-        <circle cx="2" cy="7"  r="1.2"/>
-        <circle cx="6" cy="7"  r="1.2"/>
-        <circle cx="2" cy="12" r="1.2"/>
-        <circle cx="6" cy="12" r="1.2"/>
+        <circle cx="2" cy="2"  r="1.2"/><circle cx="6" cy="2"  r="1.2"/>
+        <circle cx="2" cy="7"  r="1.2"/><circle cx="6" cy="7"  r="1.2"/>
+        <circle cx="2" cy="12" r="1.2"/><circle cx="6" cy="12" r="1.2"/>
       </svg>
     </div>
 
-    <!-- Drawing tools -->
     <div class="tool-group">
       <button class="tool-btn" id="drawBtn" type="button" title="Draw  D">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -327,7 +304,6 @@
 
     <div class="sep"></div>
 
-    <!-- History -->
     <div class="tool-group">
       <button class="tool-btn subtle" id="undoBtn" type="button" title="Undo  Z">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -345,7 +321,6 @@
 
     <div class="sep"></div>
 
-    <!-- Export + Help -->
     <div class="tool-group">
       <button class="tool-btn subtle" id="exportBtn" type="button" title="Export PNG">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -371,17 +346,88 @@
 <script src="/config.js"></script>
 <script type="module" src="/static/app.js"></script>
 <script>
-  // Panel collapse
-  document.querySelectorAll('.panel.collapsible .panel-head').forEach(btn => {
-    btn.addEventListener('click', () => {
+  // ── Panel collapse ───────────────────────────────────────────
+  document.querySelectorAll('.panel.collapsible .panel-head').forEach(function(btn) {
+    btn.addEventListener('click', function() {
       btn.closest('.panel').classList.toggle('collapsed');
     });
   });
 
-  // Help button
-  document.getElementById('helpBtn')?.addEventListener('click', () => {
+  // ── Help button ──────────────────────────────────────────────
+  document.getElementById('helpBtn')?.addEventListener('click', function() {
     window.__shortcutsOverlayToggle?.();
   });
+
+  // ── Drag-and-drop PNG import onto Stamps panel ───────────────
+  // Drop any image file onto the Stamps & Patterns panel to import
+  // it as a custom stamp. Calls window.__sdImportPng() which is
+  // exposed by appController.js after the stamp system boots.
+  (function() {
+    document.addEventListener('DOMContentLoaded', function() {
+      var panel = document.getElementById('patternsPanel');
+      if (!panel) return;
+
+      function stampList() { return panel.querySelector('.stamp-list'); }
+
+      function hasImageFile(dt) {
+        if (!dt) return false;
+        // During dragover only types is available, not files
+        if (dt.types) {
+          for (var i = 0; i < dt.types.length; i++) {
+            if (dt.types[i] === 'Files') return true;
+          }
+        }
+        return false;
+      }
+
+      panel.addEventListener('dragenter', function(e) {
+        if (!hasImageFile(e.dataTransfer)) return;
+        e.preventDefault();
+        stampList()?.classList.add('drag-over');
+      });
+
+      panel.addEventListener('dragover', function(e) {
+        if (!hasImageFile(e.dataTransfer)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      });
+
+      panel.addEventListener('dragleave', function(e) {
+        if (!panel.contains(e.relatedTarget)) {
+          stampList()?.classList.remove('drag-over');
+        }
+      });
+
+      panel.addEventListener('drop', function(e) {
+        e.preventDefault();
+        stampList()?.classList.remove('drag-over');
+
+        var files = e.dataTransfer?.files;
+        if (!files || !files.length) return;
+
+        Array.from(files).forEach(function(file) {
+          if (!file.type.startsWith('image/')) return;
+
+          if (file.size > 5 * 1024 * 1024) {
+            window.__sdToast?.('"' + file.name + '" is too large (max 5 MB)', 'error');
+            return;
+          }
+
+          var reader = new FileReader();
+          reader.onload = function(ev) {
+            // Derive clean name from filename
+            var name = file.name
+              .replace(/\.[^.]+$/, '')
+              .replace(/[-_]+/g, ' ')
+              .trim();
+            name = name.charAt(0).toUpperCase() + name.slice(1);
+            window.__sdImportPng?.(ev.target.result, name);
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+    });
+  })();
 </script>
 </body>
 </html>
